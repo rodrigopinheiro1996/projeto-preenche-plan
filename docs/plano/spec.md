@@ -27,7 +27,7 @@ contactou por mensagem ativa: **`Falha`, `Enviada`, `Entregue`, `Lida`**.
 ## 3. Planilha (formato real, sem dados)
 
 - Aba `AÇÃO`. Cabeçalhos: `Id Origem | Nome | CPF/CNPJ | Motivo Mãe | Telefones | Lote` e, na versão já
-  trabalhada, `Status` (G: Novo/Respondido/Fechado/#N/A — **não tocar**) e `Retorno` (H, vazia).
+  trabalhada, `Status` (G: Novo/Respondido/Fechado/#N/A — **não tocar**; é coluna da planilha, não do bm) e `Retorno` (H, vazia).
 - `Telefones`: 1 número de 11 dígitos por célula, gravado como **número** (ex.: `71900000001`). Podem existir
   células com mais de um número → casar por qualquer um (separar por `;` `/` espaço).
 - Se a coluna de destino não existir (ex.: arquivo só até `Lote`), cria `Retorno` na próxima coluna vazia.
@@ -105,32 +105,21 @@ Classes com hash (`Yv6Nb-…==`, `sc-…`, `nth-child`) **mudam a cada deploy: n
 7. **Telefone × nome divergentes**: vale o telefone; o caso vira aviso no relatório.
 8. **Cliente repetido na fila** (2 envios): vale o **mais recente** (o de cima); o outro vai ao relatório.
 9. **Célula já preenchida**: não sobrescreve; caixa "sobrescrever existentes" (padrão desmarcada).
-10. **Linha da planilha sem card = `Respondido`** (decisão do BM): quem não está mais em Mensagens ativas
-    respondeu (virou ticket) — ou a mensagem expirou, mas o BM assume "respondeu". Grava **`Respondido`** em
-    toda linha (com Retorno vazio, ou todas se "sobrescrever") que nenhum card casou. Regras de segurança:
-    - **com "últimos N" preenchido, `Respondido` NÃO é gravado** (decisão do BM no planejamento: as linhas fora dos N
-      não foram visitadas; a confirmação inicial avisa isso);
-    - **só grava se a execução chegou ao fim da lista**; se parar/der erro/Parar, as linhas não visitadas
-      ficam **em branco**;
-    - **a planilha sai sempre completa**: se **nenhum** card ficou não identificado, grava `Respondido` em todas
-      as linhas sem card. Se **sobrou** card não identificado (sem telefone e sem nome utilizável, ou pulado
-      pelo BM numa pausa de nome), ele pode ser dono de uma dessas linhas: o painel pergunta **uma vez**
-      "K cards ficaram sem identificar. Marcar as M linhas restantes como Respondido mesmo assim?" com os
-      botões **Sim, gravar** (destaque/padrão) e **Deixar em branco**. Em qualquer caso a planilha é baixada
-      na hora. Cards não identificados **não** pausam a execução (a pausa é só para nome repetido, §6.6);
-    - linhas que casaram com card recebem o **selo exato do Blip** (§6.5), nunca `Respondido`;
-    - **premissa operacional do BM**: o bm é rodado **dentro de 24 h do envio**, então nenhuma mensagem
-      expirou e **sumir da lista = respondeu** (o `Respondido` é confiável). Se rodar depois, mensagens
-      expiradas também somem da lista e seriam marcadas `Respondido` por engano — avisar no painel.
-    `N. localizado` **não é gravado na planilha**. Premissa do BM: o envio é feito para **todos** os contatos da
-    própria planilha, então **todo card da fila deve ter uma linha**. Card que não casa com nenhuma linha é
-    **anomalia** (bm não conseguiu identificar o cliente): vai ao **relatório** como "não identificado — verificar
-    manualmente" (com nome e telefone lidos) e **nada é gravado** por causa dele. Não acrescentar linhas nem
-    abas à planilha.
+10. **Só se grava o que o Blip mostra** (decisão do BM, revisão do planejamento — **substitui** o antigo
+    `Respondido`): preenche primeiro todo cliente com selo claro (`Lida`/`Enviada`/`Falha`/`Entregue`). Todo o
+    resto fica **em branco**:
+    - linha da planilha **sem card** (saiu da fila, respondeu, expirou, ficou fora do N, execução interrompida):
+      **célula em branco**. **Não existe mais `Respondido`**, nem pergunta de confirmação sobre isso;
+    - card **sem telefone e sem nome utilizável** (ou com nome só de emoji etc.): é **pulado** — nada gravado,
+      **sem pausar**; só entra no relatório como contagem ("pulados: sem telefone/nome");
+    - **`N. localizado` foi dispensado**: não vai para a planilha **nem** para o relatório. Card com telefone/nome
+      mas sem linha na planilha também não grava nada (e não gera seção própria no relatório);
+    - linhas que casaram com card recebem o **selo exato do Blip** (§6.5);
+    - a planilha é baixada ao final (ou parcial) só com essas gravações; não acrescenta linhas nem abas.
 11. **Filtro de campanha**: campo editável, padrão **`acao_reclameaqui`**; vazio = todas. Cards de outra
     campanha são ignorados e só contados no relatório.
 12. **Quantos verificar**: campo "últimos **N** clientes" (vazio = todos). Conta os **N primeiros cards do topo**
-    **depois** do filtro de campanha (o topo é o mais recente). Ex.: mandou 50 ontem e 30 hoje → N = 30. Com N preenchido não há `Respondido` (§6.10).
+    **depois** do filtro de campanha (o topo é o mais recente). Ex.: mandou 50 ontem e 30 hoje → N = 30.
 13. **Foto da fila**: antes de começar, rola até a contagem de cards estabilizar e tira uma foto (título,
     campanha, horário, selo). O selo gravado é o da foto. Na hora do clique, reencontra o card por
     título+campanha+horário; se sumiu/mudou, **pula e anota** (não para tudo).
@@ -138,9 +127,9 @@ Classes com hash (`Yv6Nb-…==`, `sc-…`, `nth-child`) **mudam a cada deploy: n
     botão **Parar**; nunca duplicar ação.
 15. **Não perder trabalho**: botão **Baixar parcial** sempre disponível; qualquer parada por erro/pausa longa
     **baixa a parcial automaticamente**. Recarregar a página perde o progresso em memória (o original segue intacto).
-16. **Relatório no painel** (copiável): contagens por selo e de `Respondido`, cards **sem linha** na planilha
-    (`N. localizado` no relatório), cards não resolvidos (e se isso impediu o `Respondido`),
-    "por nome parcial", divergência Telefone×Id, "possível painel repetido", cards pulados (campanha/sumiu).
+16. **Relatório no painel** (copiável): contagens por selo gravado, linhas que ficaram em branco, cards pulados
+    (sem telefone/nome, campanha diferente, sumiu), "por nome parcial", divergência Telefone×Id, "possível painel
+    repetido", duplicados e células já preenchidas não sobrescritas. **Sem** `Respondido` e **sem** `N. localizado`.
 
 ## 7. Stack, estrutura e testes
 
@@ -158,8 +147,8 @@ Classes com hash (`Yv6Nb-…==`, `sc-…`, `nth-child`) **mudam a cada deploy: n
 
 ## 8. Pendências (confirmar antes/ao planejar)
 
-- ~~P1~~ **Resolvida**: quem não está na lista = `Respondido` (§6.10). Selos aceitos do Blip (confirmados por
-  imagem): `Enviada`, `Lida`, `Entregue`, `Falha` — os demais casos recebem exatamente um desses.
+- ~~P1~~ **Resolvida**: linha sem card fica em branco (§6.10). Selos aceitos do Blip (confirmados por imagem):
+  `Enviada`, `Lida`, `Entregue`, `Falha` — os demais casos recebem exatamente um desses.
 - **P2** Troca de painel entre clientes diferentes não foi medida no site real (só o mesmo cliente). A proteção
   §6.4 cobre. **O BM fará o teste real** quando o bm estiver pronto: campo "últimos N" = 2 ou 3, depois conferir
   as linhas à mão contra o Blip antes de rodar o lote.

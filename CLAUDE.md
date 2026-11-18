@@ -17,13 +17,9 @@ grava numa **cópia** baixada do .xlsx. Usuário: o BM (operador do Blip). Detal
 Decisões-chave (resumo; a spec manda):
 - Telefone na planilha = `71981825172` (11 dígitos); no Blip vem `+55 (71) 98182-5172` ou Id `55…@wa.gw.msging.net`.
 - Nome ambíguo (2+ candidatos) → **pausa** e pede decisão ao BM; depois segue até o fim.
-- Linha da planilha **sem card** (cliente saiu da fila = respondeu) → grava **`Respondido`**, só se a execução
-  chegou ao fim; se sobrou card não identificado, o painel pergunta uma vez se grava mesmo assim (a planilha
-  sai sempre completa; relatório é só plano B). Premissa: todo card da fila tem linha
-  na planilha; card que não casa = anomalia → relatório "não identificado, verificar manualmente" (nada é
-  gravado, não acrescenta linhas/abas). `N. localizado` não vai para a planilha.
-- Com "últimos N" preenchido **não** grava `Respondido` (decisão do planejamento).
-- Selos do Blip gravados exatos: `Enviada`, `Lida`, `Entregue`, `Falha`.
+- Só grava o que o Blip mostra (selo exato: `Enviada`, `Lida`, `Entregue`, `Falha`). Linha sem card → **em branco**
+  (**não existe `Respondido`**, nem pergunta). Card sem telefone/nome utilizável → **pulado** (sem pausar, só
+  contagem no relatório). `N. localizado` dispensado (nem planilha nem relatório).
 - Filtro de campanha (padrão `acao_reclameaqui`) e campo "últimos N clientes" (N primeiros do topo, após o filtro).
 - Proteção contra painel velho: só lê Informações quando `Nome` bate com o card ou o `Id` mudou.
 - Só clica em **card** e **aba Contato**. Nunca em Enviar / Enviar nova mensagem / Atualizar.

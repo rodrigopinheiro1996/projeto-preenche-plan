@@ -5,11 +5,15 @@
 > aqui: cada tarefa traz arquivos, **interface**, **tabela de testes (entrada → esperado)**, comandos e commit.
 > Dados sempre **fictícios** (`71900000001` etc.). Idioma: pt-BR (código, UI, commits).
 
-## Decisão nova (rodada de planejamento)
+## Decisão de revisão (rodada de planejamento — substitui `Respondido`)
 
-**`Respondido` com "últimos N" preenchido: NÃO grava** (escolha do BM). Com N preenchido só as linhas dos N cards
-recebem o selo; nenhuma linha vira `Respondido`, e a confirmação inicial avisa isso. Vale também para o teste real
-com N = 2–3 (P2). Gravar no spec §6.10/§6.12 (Tarefa 13).
+O BM simplificou: **grava-se só o que o Blip mostra**. Primeiro todo cliente com selo claro (`Lida`/`Enviada`/
+`Falha`/`Entregue`); o resto fica **em branco**.
+- **`Respondido` deixa de existir** (nada de gravar em linha sem card, nada de pergunta "K cards sem identificar").
+  Isso torna inúteis a regra "com N não grava" e a premissa de 24 h (ficam só como aviso opcional no painel).
+- Card **sem telefone e sem nome utilizável** → **pulado**, sem pausa, nada gravado (só contagem no relatório).
+- **`N. localizado` dispensado**: não vai à planilha nem ao relatório.
+- Já registrado em `docs/plano/spec.md` (§6.10, §6.16, P1) e `CLAUDE.md`. Em conflito, a spec manda.
 
 ## Arquitetura
 
@@ -151,7 +155,7 @@ linhas:[{linha:n, celulas:{A:valor,...}}]}`.
   **Célula numérica (`<v>` sem `t` ou `t="n"`): `Number(v)` → inteiro (`String(Math.round(n))`), nunca "só dígitos" do
   texto** — o Excel grava `7.1900000001E10`. Vetor: `<v>7.1900000001E10</v>` → `'71900000001'`.
 - **Linha de dados** = Nome **ou** Telefones não vazio. Linhas só com estilo/vazias são ignoradas (nunca recebem
-  `Respondido`). Fixture `linhas-vazias-estilizadas.xlsx`.
+  qualquer coisa). Fixture `linhas-vazias-estilizadas.xlsx`.
 - Decodificar entidades XML. Linha 1 = cabeçalhos.
 - `detectarColunas(cabecalhos) → {nome, telefones, destino}` por cabeçalho (`Nome`, `Telefones`, `Retorno`; sem
   acento/maiúscula). Ausente → `null` (o painel deixa o BM escolher).
@@ -163,7 +167,7 @@ linhas:[{linha:n, celulas:{A:valor,...}}]}`.
 (notação científica no `<v>`, `<c r="H5" s="7"/>` vazia estilizada, linhas vazias estilizadas) — openpyxl sozinho
 não reproduz as manias do Excel.
 **Testes:** cabeçalhos de `modelo.xlsx`; `<v>7.1900000001E10</v>` → `71900000001`; linhas vazias estilizadas não
-aparecem em `linhas`; `aba-segunda.xlsx` acha `AÇÃO` pelo rels; telefone numérico lido como
+aparecem em `linhas` (não são linhas de dados); `aba-segunda.xlsx` acha `AÇÃO` pelo rels; telefone numérico lido como
 `71900000001`; célula com 2 números; aba inexistente → erro; `detectarColunas` em `sem-retorno.xlsx` → `destino: null`.
 **Rodar:** `node --test tests/unit/xlsx-leitura.test.js`. **Commit:** `xlsx: leitura de abas, cabeçalhos e linhas`.
 
@@ -183,7 +187,7 @@ Altera **só** o XML da aba e cria no máximo a coluna de destino:
   as gravações finais).
 
 **Testes (`tests/unit/xlsx-escrita.test.js`):**
-- Gravar `Lida`/`Respondido` em linhas de `modelo.xlsx` → reabrir com `abrirXlsx` **e** com openpyxl
+- Gravar `Lida`/`Falha` em linhas de `modelo.xlsx` → reabrir com `abrirXlsx` **e** com openpyxl
   (`xlsx-externo.py`; **a validação decisiva é a independente**) → valores certos, coluna `Status` (G) intacta.
 - `sem-retorno.xlsx`: cria `Retorno` em `G1`, `dimension` passa a incluir `G`; ordem das células correta.
 - `celulas-esparsas.xlsx`: linha sem a célula do destino ganha a `<c>` na posição certa.
@@ -215,18 +219,15 @@ Cérebro das regras, **sem DOM nem relógio**.
   4. telefone × nome divergentes (telefone casou a linha X, nome do Blip aponta outra linha): vale X + aviso
      `divergencia-telefone-nome`.
 - `aplicarEscolha(resultadoAmbiguo, {acao:'escolher', linha} | {acao:'pular'}) → {tipo:'casou'|'pulado'}`.
-- `consolidar({fotoCards, resolucoes, linhas, opcoes:{sobrescrever, n, campanha, chegouAoFim}, decisaoRespondido})
-  → {gravacoes: Map<linha,string>, relatorio}`:
-  - linha casada → **selo exato** do card (da foto), nunca `Respondido` (§6.5, §6.10);
+- `consolidar({fotoCards, resolucoes, linhas, opcoes:{sobrescrever}}) → {gravacoes: Map<linha,string>, relatorio}`:
+  - linha casada → **selo exato** do card (da foto) (§6.5);
   - **duplicado** (2 cards na mesma linha): vale o **mais recente** (menor índice, topo); o outro → relatório (§6.8);
   - célula já preenchida e `!sobrescrever` → não grava, entra no relatório;
-  - `Respondido` em toda linha sem card **somente se** `chegouAoFim && n vazio` (decisão desta rodada: **com N,
-    nunca**); se `n` vazio e restaram cards não identificados → depende de `decisaoRespondido`
-    (`'sim'`/`'deixar'`/`undefined` ⇒ o chamador precisa perguntar; ver Tarefa 7); se nenhum não identificado →
-    grava direto;
-  - relatório (§6.16): contagens por selo e de `Respondido`; cards sem linha ("N. localizado"); não identificados
-    (e se impediram o `Respondido`); por nome parcial; divergências; "possível painel repetido"; pulados
-    (campanha/sumiu); duplicados; selo desconhecido gravado como está (§6.5).
+  - **linha sem card = em branco** (nada é gravado); card `nao_identificado` (sem telefone/nome) ou sem linha →
+    **só contagem** no relatório, nada gravado, **sem `N. localizado`**;
+  - relatório (§6.16): contagens por selo gravado e linhas em branco; pulados (sem telefone/nome, campanha,
+    sumiu); por nome parcial; divergências; "possível painel repetido"; duplicados; preenchidas não sobrescritas;
+    selo desconhecido gravado como está (§6.5).
 
 **Tabela de testes (`tests/unit/casar.test.js`, linhas fictícias; usar helper `linhasFicticias()`):**
 | Cenário | Esperado |
@@ -236,7 +237,7 @@ Cérebro das regras, **sem DOM nem relógio**.
 | Id `…@tunnel` sem telefone, nome completo igual, 1 linha | `casou` `por:'nome'` |
 | Título `+55 (71) 90000-0001`, painel vazio | casa pelo título |
 | Telefone do painel ≠ telefone do Id | usa o painel + aviso |
-| Telefone lido sem linha, nome do painel igual a uma linha existente | `nao_identificado` (NÃO casa por nome), relatório com nome+telefone |
+| Telefone lido sem linha, nome do painel igual a uma linha existente | `nao_identificado` (NÃO casa por nome), nada gravado, só contagem |
 | Mesmo telefone em 2 linhas da planilha | relatório `telefone-repetido-na-planilha`, sem pausa, nada gravado |
 | Telefone de 10 dígitos na planilha, 11 no Blip (últimos 8) | casa |
 | Célula de planilha com 2 números, 2º igual ao do Blip | casa |
@@ -247,11 +248,10 @@ Cérebro das regras, **sem DOM nem relógio**.
 | `aplicarEscolha` pular | `pulado`, nada gravado, anotado |
 | 2 cards da mesma linha | grava o de cima; o outro no relatório |
 | Célula com valor, `sobrescrever=false` | não grava, relatório; `true` → grava |
-| Run completo, 0 não identificados, 2 linhas sem card | `Respondido` nas 2 |
-| Run completo, K=1 não identificado, M=2 linhas sem card | `consolidar` devolve `precisaPerguntar:{K:1,M:2}`; `'sim'` grava, `'deixar'` deixa em branco |
-| Run **não** chegou ao fim | nenhuma `Respondido` |
-| **`n` preenchido** | nenhuma `Respondido`, selos gravados |
-| Linha casada com `Falha` | grava `Falha`, nunca `Respondido` |
+| Run completo, linhas da planilha sem card | ficam **em branco** (nenhuma gravação nelas) |
+| Card sem telefone e sem nome utilizável | `nao_identificado`: pulado, sem pausa, contado no relatório |
+| Run interrompido / `n` preenchido | grava só os cards já resolvidos; o resto em branco |
+| Linha casada com `Falha` | grava `Falha` |
 | Selo `Pendente` (desconhecido) | grava `Pendente` e lista no relatório |
 
 **Commit:** `casar: regras de casamento, consolidação e relatório`.
@@ -261,12 +261,11 @@ Cérebro das regras, **sem DOM nem relógio**.
 Orquestra com **portas injetadas** (nada de DOM/`setTimeout` direto), para testar tudo sem navegador.
 
 **Portas:** `blip` = `{fotografarFila(), reencontrarCard(item), clicarCard(el), abrirContato(), lerPainel()}`;
-`relogio` = `{agora(), esperar(ms)}`; `ui` = `{confirmar(info), pedirDecisaoNome(candidatos), perguntarRespondido(K,M),
-progresso(info), baixarParcial(bytes,nome)}`; `planilha` = `{linhas, colNome, colTelefones, colDestino, gravar(gravacoes)}`.
+`relogio` = `{agora(), esperar(ms)}`; `ui` = `{confirmar(info), pedirDecisaoNome(candidatos), progresso(info), baixarParcial(bytes,nome)}`; `planilha` = `{linhas, colNome, colTelefones, colDestino, gravar(gravacoes)}`.
 
 **Comportamento (cada item vira teste):**
 1. `fotografarFila` → filtra por campanha (vazio = todas; outras só contadas) → corta nos **N primeiros do topo**
-   (§6.12) → `ui.confirmar({cards, campanhas, n, avisoRespondidoComN, avisoUmDia})`. Sem confirmação = nada acontece.
+   (§6.12) → `ui.confirmar({cards, campanhas, n})`. Sem confirmação = nada acontece.
 2. Para cada item: `reencontrarCard` por **título+campanha+horário**; sumiu/mudou → **pula e anota** (não para).
    Clicar **sempre** o card e **sempre** abrir Contato (mesmo título parecendo telefone). Só essas duas ações existem
    na porta `blip` — por construção o orquestrador não consegue clicar em Enviar/Atualizar.
@@ -281,20 +280,20 @@ progresso(info), baixarParcial(bytes,nome)}`; `planilha` = `{linhas, colNome, co
    baixa a parcial automaticamente** (a execução continua pausada, sem gravar nada além do já resolvido).
    Teste com relógio simulado: 119 s ⇒ nada; 120 s ⇒ `baixarParcial` 1×.
 6. **Parar** (botão ou erro ambíguo): encerra, **baixa parcial automaticamente**, linhas não visitadas **em branco**,
-   sem `Respondido`. Qualquer exceção inesperada = parar e mostrar o motivo (nada de adivinhar).
-7. Fim da lista: `consolidar(chegouAoFim:true)`; se `precisaPerguntar` → `ui.perguntarRespondido(K,M)` **uma vez**
-   (padrão destacado: *Sim, gravar*); baixar na hora. **Contagem de K**: card que sumiu entre a foto e o clique conta como **não identificado** (pode ser dono de uma
-   linha) — entra em K e é citado no relatório como "pulado (sumiu)". **Nunca duplicar ação** (cada card visitado no máx. 1×; reentrada
-   bloqueada por flag de execução).
-8. `baixarParcial` disponível a qualquer momento (planilha só com o que já foi resolvido, sem `Respondido`).
+   nada além do já resolvido. Qualquer exceção inesperada = parar e mostrar o motivo (nada de adivinhar).
+7. Fim da lista: `consolidar` → `planilha.gravar` → baixar na hora (**sem pergunta final**). Card que sumiu entre a
+   foto e o clique vira "pulado (sumiu)" no relatório. **Nunca duplicar ação** (cada card visitado no máx. 1×;
+   reentrada bloqueada por flag de execução).
+8. `baixarParcial` disponível a qualquer momento (planilha só com o que já foi resolvido; o resto em branco).
 
 **Testes (`tests/unit/execucao.test.js`, portas falsas + relógio simulado que acumula `esperar`):**
 - espera de painel velho: painel só muda após 2 s ⇒ lê o novo, não o velho; painel nunca muda ⇒ 6 s e vai ao nome;
 - **1º cliente com outro já selecionado**: painel inicial = Id de terceiro, painel do 1º card atrasa 2 s ⇒ a leitura
   antiga (Id da linha de base) é **rejeitada**; só a nova é aceita;
 - título repetido ⇒ espera cheia + `possivelPainelRepetido`; pausa de 400 ms entre clientes (soma do relógio);
-- N=2 com 3 campanhas misturadas ⇒ só 2 do topo **depois** do filtro; sem `Respondido`; confirmação avisa;
+- N=2 com 3 campanhas misturadas ⇒ só 2 do topo **depois** do filtro; nada gravado fora dos N;
 - card some entre foto e clique ⇒ pula, anota, segue; `ui.confirmar` retorna `false` ⇒ zero chamadas a `clicarCard`;
+- card sem telefone e sem nome utilizável ⇒ **não pausa**, não grava, segue para o próximo;
 - ambíguo ⇒ `pedirDecisaoNome` chamada 1×; *parar tudo* ⇒ `baixarParcial` automática; *pular* ⇒ não grava;
 - exceção em `lerPainel` ⇒ parada + parcial + motivo; execução interrompida ⇒ **linhas em branco**;
 - dupla chamada de `iniciar()` ⇒ segunda rejeitada.
@@ -344,11 +343,9 @@ abre Contato, lê o painel. **Commit:** `testes: página falsa do Blip a partir 
 
 Painel em shadow root próprio (ids/estilos isolados): seletor de arquivo `.xlsx`; selects de coluna **Nome**,
 **Telefones** e **destino** (padrão `Retorno`); campo campanha (padrão `acao_reclameaqui`, vazio = todas); campo
-"últimos N" (vazio = todos); caixa "sobrescrever existentes" (desmarcada); aviso fixo **"rodar em até 24 h do
-envio"**; diálogo de confirmação com contagens (e aviso "com N preenchido, `Respondido` não será gravado");
+"últimos N" (vazio = todos); caixa "sobrescrever existentes" (desmarcada); diálogo de confirmação com contagens;
 diálogo de decisão de nome (candidatos com nome, telefone, nº da linha; *escolher* / *pular* / *parar tudo*);
-diálogo único "K cards ficaram sem identificar. Marcar as M linhas restantes como Respondido mesmo assim?" com
-*Sim, gravar* (destaque) e *Deixar em branco*; botões **Parar** e **Baixar parcial**; progresso; área do
+botões **Parar** e **Baixar parcial**; progresso; área do
 **relatório** com botão *Copiar*. Textos em pt-BR. O painel **nunca** chama o DOM do Blip (só `main`/`execucao` via portas).
 **Teste:** coberto pelos e2e da Tarefa 12 (preencher campos, ver diálogos, copiar relatório).
 **Commit:** `painel: interface do bookmarklet em shadow DOM`.
@@ -380,13 +377,15 @@ Cenários (um arquivo cada, fixtures fictícias):
 7. **Célula já preenchida**: preservada; com "sobrescrever" marcada, regravada.
 8. **Telefone 10 dígitos** na planilha casa pelos últimos 8.
 9. **Duas campanhas**: filtro padrão ignora a outra (contada no relatório); filtro vazio inclui as duas.
-10. **Execução interrompida** (botão Parar no meio): linhas não visitadas **em branco**, parcial baixada, sem `Respondido`.
-11. **Matriz §6.10**:
-    - fila completa, 0 não identificados, linhas sem card ⇒ `Respondido` nelas;
-    - K ≥ 1 não identificado ⇒ **exatamente 1** diálogo; *Sim, gravar* ⇒ grava; *Deixar em branco* ⇒ em branco;
+10. **Execução interrompida** (botão Parar no meio): linhas não visitadas **em branco**, parcial baixada; nada gravado além do já resolvido.
+11. **Matriz §6.10 (revisada)**:
+    - fila completa, linhas da planilha sem card ⇒ **células em branco** (nenhum `Respondido` em lugar nenhum;
+      o arquivo baixado não contém a palavra `Respondido` nas células da coluna de destino);
+    - card sem telefone e sem nome utilizável (emoji; Id `tunnel` sem nome) ⇒ **pulado, sem pausa, sem diálogo**,
+      nada gravado, contado no relatório; os demais cards seguem normalmente;
+    - card com telefone mas sem linha na planilha ⇒ nada gravado e **sem** `N. localizado` no relatório;
     - interrompida ⇒ em branco; sobrescrever desmarcado ⇒ células preenchidas intactas;
-    - linha casada recebe o selo, **nunca** `Respondido`;
-    - **N preenchido (=2)** ⇒ nenhuma linha `Respondido`; só as 2 linhas dos cards recebem selo.
+    - **N preenchido (=2)** ⇒ só as 2 linhas dos cards recebem selo; o resto em branco.
 12. **Planilha sem `Retorno`** ⇒ coluna criada na próxima vazia, validada no openpyxl.
 13. **Segurança**: nenhum clique em `Enviar`/`Enviar nova mensagem`/`Atualizar`; `Parar` impede novos cliques de card;
     cancelar na confirmação ⇒ zero cliques.
@@ -395,7 +394,7 @@ Cenários (um arquivo cada, fixtures fictícias):
 
 ### Tarefa 13 — Documentação e entrega
 
-- `docs/plano/spec.md`: registrar a decisão **`Respondido` + N** em §6.10 e §6.12 (e corrigir o texto do painel).
+- `docs/plano/spec.md`: já reflete a revisão (sem `Respondido`/`N. localizado`); conferir que nada ficou contraditório.
 - `CLAUDE.md`: status "implementado/testado em página falsa", **comandos reais** (tabela acima), estrutura final,
   limitações.
 - `README.md`: como instalar (`dist/instalar.html`), como usar, como testar.
@@ -426,8 +425,7 @@ Cenários (um arquivo cada, fixtures fictícias):
 | §6.7 telefone × nome divergentes | 6 |
 | §6.8 cliente repetido | 6, 12 (5) |
 | §6.9 célula preenchida / sobrescrever | 6, 12 (7) |
-| §6.10 `Respondido`, premissa 24 h, pergunta única, planilha completa, N. localizado só no relatório | 6, 7, 10, 12 (11), 13 |
-| **Novo:** `Respondido` com N = não grava | 6, 7, 10, 12 (11), 13 |
+| §6.10 só grava o que o Blip mostra; linha sem card em branco; card sem telefone/nome pulado; sem `N. localizado` | 6, 7, 12 (11) |
 | §6.11 filtro de campanha | 7, 10, 12 (9) |
 | §6.12 últimos N (depois do filtro) | 7, 10, 12 (11) |
 | §6.13 foto da fila, reencontrar card | 7, 8 |
