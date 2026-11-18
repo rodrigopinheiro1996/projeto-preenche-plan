@@ -1,5 +1,5 @@
 // Leitura (e, na Tarefa 5, escrita) de planilhas .xlsx por regex sobre o XML — sem DOM, roda em Node e no navegador.
-import { lerZip } from './zip.js';
+import { lerZip, gravarZip } from './zip.js';
 
 const dec = new TextDecoder();
 
@@ -120,4 +120,99 @@ export async function abrirXlsx(uint8, { aba = 'AÇÃO' } = {}) {
   const linhas = todas.filter((l) => l.linha > 1 && ehDado(l.celulas)).sort((a, b) => a.linha - b.linha);
 
   return { entradas, caminhoAba, cabecalhos, linhas };
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Escrita: altera SÓ o XML da aba (células `inlineStr`); sharedStrings, estilos e demais partes ficam intactos.
+
+const escaparXml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+function celulaTexto(ref, estilo, valor) {
+  const preservar = valor !== valor.trim() || /\s{2,}|[\r\n]/.test(valor);
+  const s = estilo ? ` s="${estilo}"` : '';
+  const t = preservar ? '<t xml:space="preserve">' : '<t>';
+  return `<c r="${ref}"${s} t="inlineStr"><is>${t}${escaparXml(valor)}</t></is></c>`;
+}
+
+/** Grava/insere a célula `col` no miolo da linha, na ordem de colunas. Substitui no lugar (mantém `s`). */
+function pôrCelulaNaLinha(inner, linha, col, valor) {
+  const ref = `${col}${linha}`;
+  const alvo = colunaParaNumero(col);
+  for (const cm of inner.matchAll(/<c\b([^>]*?)(?:\/>|>[\s\S]*?<\/c>)/g)) {
+    const a = atributos(cm[1]);
+    const c = /^([A-Z]+)/.exec(a.r ?? '')?.[1];
+    if (!c) continue;
+    const n = colunaParaNumero(c);
+    if (n === alvo) {
+      return inner.slice(0, cm.index) + celulaTexto(ref, a.s, valor) + inner.slice(cm.index + cm[0].length);
+    }
+    if (n > alvo) return inner.slice(0, cm.index) + celulaTexto(ref, undefined, valor) + inner.slice(cm.index);
+  }
+  return inner + celulaTexto(ref, undefined, valor);
+}
+
+function ajustarSpans(abertura, alvo) {
+  return abertura.replace(/\bspans="(\d+):(\d+)"/, (m, a, b) =>
+    (alvo > Number(b) ? `spans="${a}:${alvo}"` : m));
+}
+
+function aplicarNaLinha(linhaXml, linha, col, valor) {
+  const m = /^<row\b([^>]*?)(\/?)>/.exec(linhaXml);
+  const alvo = colunaParaNumero(col);
+  const abertura = ajustarSpans(m[1], alvo);
+  const inner = m[2] === '/' ? '' : linhaXml.slice(m[0].length, linhaXml.length - '</row>'.length);
+  return `<row${abertura}>${pôrCelulaNaLinha(inner, linha, col, valor)}</row>`;
+}
+
+function atualizarDimensao(xml, maxLinha, maxColuna) {
+  return xml.replace(/<dimension\s+ref="([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?"\s*\/>/, (_, c1, r1, c2, r2) => {
+    const col = Math.max(colunaParaNumero(c2 ?? c1), maxColuna);
+    const lin = Math.max(Number(r2 ?? r1), maxLinha);
+    return `<dimension ref="${c1}${r1}:${numeroParaColuna(col)}${lin}"/>`;
+  });
+}
+
+/**
+ * @param xlsx  resultado de abrirXlsx
+ * @param opcoes {colunaDestino:'H', criarCabecalho?:'Retorno', gravacoes: Map<linha,string>}
+ * @returns {Promise<Uint8Array>} novo .xlsx (a entrada não é mutada)
+ */
+export async function gravarCelulas(xlsx, { colunaDestino, criarCabecalho, gravacoes }) {
+  const edicoes = new Map([...gravacoes].map(([l, v]) => [Number(l), String(v)]));
+  if (criarCabecalho && !xlsx.cabecalhos.some((c) => c.coluna === colunaDestino && c.texto !== '')) {
+    edicoes.set(1, criarCabecalho);
+  }
+  const entrada = xlsx.entradas.get(xlsx.caminhoAba);
+  let xml = dec.decode(entrada.dados);
+  const sd = /<sheetData\b[^>]*?(?:\/>|>([\s\S]*?)<\/sheetData>)/.exec(xml);
+  if (!sd) throw new Error(ERRO_XLSX);
+
+  const existentes = [...(sd[1] ?? '').matchAll(/<row\b[^>]*?(?:\/>|>[\s\S]*?<\/row>)/g)].map((m) => ({
+    linha: Number(atributos(m[0].slice(0, m[0].indexOf('>') + 1)).r), xml: m[0],
+  }));
+  const pendentes = [...edicoes.keys()].sort((a, b) => a - b);
+  const saida = [];
+  const emitirNovas = (ate) => {
+    while (pendentes.length && pendentes[0] < ate) {
+      const l = pendentes.shift();
+      saida.push(`<row r="${l}">${celulaTexto(`${colunaDestino}${l}`, undefined, edicoes.get(l))}</row>`);
+    }
+  };
+  for (const r of existentes) {
+    emitirNovas(r.linha);
+    if (pendentes[0] === r.linha) {
+      pendentes.shift();
+      saida.push(aplicarNaLinha(r.xml, r.linha, colunaDestino, edicoes.get(r.linha)));
+    } else saida.push(r.xml);
+  }
+  emitirNovas(Infinity);
+
+  const novoSd = `<sheetData>${saida.join('')}</sheetData>`;
+  xml = xml.slice(0, sd.index) + novoSd + xml.slice(sd.index + sd[0].length);
+  const maxLinha = Math.max(0, ...edicoes.keys());
+  xml = atualizarDimensao(xml, maxLinha, colunaParaNumero(colunaDestino));
+
+  const entradas = new Map(xlsx.entradas);
+  entradas.set(xlsx.caminhoAba, { ...entrada, dados: new TextEncoder().encode(xml), alterado: true });
+  return gravarZip(entradas);
 }
