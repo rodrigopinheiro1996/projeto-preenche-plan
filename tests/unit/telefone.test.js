@@ -29,6 +29,8 @@ tabela('telefonesIguais', telefonesIguais, [
   [['71900000001', '71900000001'], true],
   // 10 dígitos (sem o 9 extra) × 11 dígitos: mesmo DDD + últimos 8 (regra da spec §5)
   [['7190000001', '71990000001'], true],
+  [['7190000001', '71900000001'], false], // últimos 8 diferem (90000001 ≠ 00000001)
+  [['7190000001', '71990000002'], false],
   [['7190000001', '71900000002'], false],
   [['7190000001', '21990000001'], false], // DDD diferente
   [['71900000001', '71900000002'], false],
