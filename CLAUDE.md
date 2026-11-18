@@ -16,7 +16,9 @@ grava numa **cópia** baixada do .xlsx. Usuário: o BM (operador do Blip). Detal
 Decisões-chave (resumo; a spec manda):
 - Telefone na planilha = `71981825172` (11 dígitos); no Blip vem `+55 (71) 98182-5172` ou Id `55…@wa.gw.msging.net`.
 - Nome ambíguo (2+ candidatos) → **pausa** e pede decisão ao BM; depois segue até o fim.
-- `N. localizado` só para linha da planilha sem card; **só se a execução chegou ao fim** (parada = em branco).
+- Linha da planilha **sem card** (cliente saiu da fila = respondeu) → grava **`Respondido`**, só se a execução
+  chegou ao fim e não sobrou card não resolvido (senão fica em branco). `N. localizado` só no relatório.
+- Selos do Blip gravados exatos: `Enviada`, `Lida`, `Entregue`, `Falha`.
 - Filtro de campanha (padrão `acao_reclameaqui`) e campo "últimos N clientes" (N primeiros do topo, após o filtro).
 - Proteção contra painel velho: só lê Informações quando `Nome` bate com o card ou o `Id` mudou.
 - Só clica em **card** e **aba Contato**. Nunca em Enviar / Enviar nova mensagem / Atualizar.
