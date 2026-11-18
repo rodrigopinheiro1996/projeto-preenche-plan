@@ -97,8 +97,9 @@ importa `chromium` e lança/fecha o navegador (esse último em `tests/e2e/smoke.
 | `extrairTelefones('71900000001 / 71900000002')` | `['71900000001','71900000002']` |
 | `extrairTelefones('71900000001;7133330001')` | `['71900000001','7133330001']` |
 | `telefonesIguais('71900000001','71900000001')` | `true` |
-| `telefonesIguais('7190000001','71900000001')` (10 vs 11, últimos 8 iguais, mesmo DDD) | `true` |
-| `telefonesIguais('7190000001','71900000002')` | `false` |
+| `telefonesIguais('7190000001','71990000001')` (10 vs 11, mesmo DDD, últimos 8 iguais `90000001`) | `true` |
+| `telefonesIguais('7190000001','71900000001')` (últimos 8 `90000001` ≠ `00000001`) | `false` |
+| `telefonesIguais('7190000001','71990000002')` | `false` |
 | `telefoneDoId('5571900000001@wa.gw.msging.net')` | `'71900000001'` |
 | `telefoneDoId('0b5f…-uuid@tunnel.msging.net')` | `null` |
 | `pareceTelefone('+55 (21) 90000-0000')` / `'Maria'` | `true` / `false` |
@@ -141,6 +142,9 @@ alterada → `CompressionStream('deflate-raw')` + CRC32); `crc32(uint8) → numb
 - **Validação independente** (não circular): gravar em `os.tmpdir()` e rodar `unzip -t` (exit 0) e
   `python3 tests/helpers/xlsx-externo.py <arquivo>` (abre com openpyxl, imprime JSON). O teste falha se qualquer
   um dos dois falhar.
+- **Quirks do Excel (openpyxl não gera):** zip montado à mão com *data descriptor* (bit 3 dos flags; tamanhos/CRC
+  zerados no cabeçalho local) e com comentário/EOCD no fim — a leitura deve usar o **diretório central** (tamanhos
+  válidos), nunca o cabeçalho local.
 - Zip truncado/inválido → lança erro com mensagem em pt-BR (não devolve lixo).
 
 **Rodar:** `node --test tests/unit/zip.test.js`. **Commit:** `zip: leitura/gravação nativa com CRC32 e cópia byte a byte`.
