@@ -9,6 +9,7 @@ import { normalizarNome } from './nome.js';
 export const ESPERA_PAINEL_MS = 6000;
 export const POLL_MS = 200;
 export const PAUSA_ENTRE_MS = 400;
+export const ESPERA_BASE_MS = 300; // tempo para o painel Contato aparecer ao ler a linha de base
 export const LIMITE_DECISAO_MS = 120_000;
 
 const mesmaCampanha = (a, b) => String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
@@ -94,7 +95,14 @@ export function criarExecucao({ blip, relogio, ui, planilha, opcoes = {} }) {
       if (!ok) return { estado: 'cancelado' };
 
       const indice = criarIndice(planilha.linhas, { colNome: planilha.colNome, colTelefones: planilha.colTelefones });
-      let idBase = (await blip.lerPainel())?.id ?? ''; // linha de base: painel de quem já estava selecionado
+      // Linha de base (§6.4): Id do painel de quem JÁ está selecionado. O painel Informações só aparece na aba Contato,
+      // então abre-se a aba (clique permitido) antes de ler; sem cliente selecionado a aba pode não existir → base vazia.
+      let idBase = '';
+      try {
+        await blip.abrirContato();
+        await relogio.esperar(ESPERA_BASE_MS);
+        idBase = (await blip.lerPainel())?.id ?? '';
+      } catch { idBase = ''; }
       let tituloAnterior = '';
 
       for (let i = 0; i < cards.length; i++) {

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { criarExecucao } from '../../src/execucao.js';
+import { criarExecucao, ESPERA_BASE_MS } from '../../src/execucao.js';
 
 // ------------------------------------------------------------------------------------------- portas falsas
 
@@ -24,7 +24,7 @@ const card = (titulo, extra = {}) => ({ titulo, campanha: 'acao_reclameaqui', ho
  * (Infinity = nunca muda); antes disso continua mostrando o painel anterior (o "painel velho").
  */
 function criarBlip({ cards, paineis = {}, atraso = {}, inicial = null, sumidos = [], falhaLer = null }, relogio) {
-  const chamadas = { cliques: [], contatos: 0, leituras: 0 };
+  const chamadas = { cliques: [], contatos: 0, leituras: 0, ordem: [] };
   let selecionado = null;
   let tClique = 0;
   let atual = inicial;
@@ -32,8 +32,8 @@ function criarBlip({ cards, paineis = {}, atraso = {}, inicial = null, sumidos =
     chamadas,
     async fotografarFila() { return cards.map((c) => ({ ...c })); },
     async reencontrarCard(item) { return sumidos.includes(item.titulo) ? null : { titulo: item.titulo }; },
-    async clicarCard(el) { chamadas.cliques.push(el.titulo); selecionado = el.titulo; tClique = relogio.agora(); },
-    async abrirContato() { chamadas.contatos++; },
+    async clicarCard(el) { chamadas.ordem.push('clique'); chamadas.cliques.push(el.titulo); selecionado = el.titulo; tClique = relogio.agora(); },
+    async abrirContato() { chamadas.ordem.push('contato'); chamadas.contatos++; },
     async lerPainel() {
       chamadas.leituras++;
       if (falhaLer && chamadas.cliques.length >= falhaLer) throw new Error('painel quebrou');
@@ -94,7 +94,13 @@ test('caminho feliz: casa por telefone, grava o selo, baixa na hora e finaliza',
   assert.equal(t.ui.finais[0].nome, 'teste_retorno.xlsx');
   assert.equal(t.ui.finalizados[0].estado, 'concluido');
   assert.deepEqual(t.blip.chamadas.cliques, ['Ana', 'Bruno']);
-  assert.equal(t.blip.chamadas.contatos, 2); // sempre abre a aba Contato
+  assert.equal(t.blip.chamadas.contatos, 2 + 1); // aba Contato em CADA cliente (+1 da linha de base)
+});
+
+test('linha de base: abre a aba Contato e lê o painel ANTES do 1º clique de card', async () => {
+  const t = montar({ cards: [card('Ana')], paineis: { Ana: painel('Ana', '71900000001', 'a@wa.gw.msging.net') } });
+  await t.exec.iniciar();
+  assert.deepEqual(t.blip.chamadas.ordem.slice(0, 3), ['contato', 'clique', 'contato']);
 });
 
 test('confirmar() devolve false: zero cliques, nada gravado', async () => {
@@ -115,7 +121,7 @@ test('painel velho: só muda após 2 s ⇒ lê o novo, não o velho (1º cliente
   });
   await t.exec.iniciar();
   assert.deepEqual([...ultima(t.planilha)], [[2, 'Lida']]); // linha de Ana; nunca a de Daniel (5)
-  assert.ok(t.relogio.t >= 2000 && t.relogio.t < 6000);
+  assert.ok(t.relogio.t >= 2000 && t.relogio.t < 6000 + ESPERA_BASE_MS);
 });
 
 test('painel nunca muda: espera 6 s, não usa o painel velho e tenta pelo nome do card', async () => {
@@ -152,7 +158,7 @@ test('título repetido + painel que nunca muda: 6000 ms, 1 gravação (a de cima
     paineis: { 'Daniel Rocha': fixo },
   });
   await t.exec.iniciar();
-  assert.equal(t.relogio.t, 400 + 6000); // pausa entre clientes + espera cheia do 2º card
+  assert.equal(t.relogio.t, ESPERA_BASE_MS + 400 + 6000); // base + pausa entre clientes + espera cheia do 2º card
   assert.equal(t.planilha.gravacoes.length, 1);
   assert.deepEqual([...ultima(t.planilha)], [[2, 'Lida']]); // só a do card de cima; nada na linha 5 (nome)
   const rel = t.ui.finalizados[0].relatorio;
@@ -169,7 +175,7 @@ test('pausa de 400 ms entre clientes (e não depois do último)', async () => {
   });
   await t.exec.iniciar();
   assert.deepEqual(t.relogio.esperas.filter((e) => e === 400), [400, 400]);
-  assert.equal(t.relogio.t, 800);
+  assert.equal(t.relogio.t, ESPERA_BASE_MS + 800);
 });
 
 test('N=2 com campanhas misturadas: só os 2 do topo DEPOIS do filtro; nada fora dos N', async () => {
