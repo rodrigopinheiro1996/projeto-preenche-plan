@@ -265,7 +265,7 @@ Cérebro das regras, **sem DOM nem relógio**.
 Orquestra com **portas injetadas** (nada de DOM/`setTimeout` direto), para testar tudo sem navegador.
 
 **Portas:** `blip` = `{fotografarFila(), reencontrarCard(item), clicarCard(el), abrirContato(), lerPainel()}`;
-`relogio` = `{agora(), esperar(ms)}`; `ui` = `{confirmar(info), pedirDecisaoNome(candidatos), progresso(info), baixarParcial(bytes,nome)}`; `planilha` = `{linhas, colNome, colTelefones, colDestino, gravar(gravacoes)}`.
+`relogio` = `{agora(), esperar(ms), limite(ms)}` (`limite(ms)` = promessa que resolve após `ms` **sem travar** a execução; usada só no prazo de 120 s da decisão de nome); `ui` = `{confirmar(info), pedirDecisaoNome(candidatos), progresso(info), baixarParcial(bytes,nome), baixarFinal(bytes,nome), finalizado({estado, motivo, relatorio})}`; `planilha` = `{linhas, colNome, colTelefones, colDestino, gravar(gravacoes)}`.
 
 **Comportamento (cada item vira teste):**
 1. `fotografarFila` → filtra por campanha (vazio = todas; outras só contadas) → corta nos **N primeiros do topo**
@@ -277,7 +277,11 @@ Orquestra com **portas injetadas** (nada de DOM/`setTimeout` direto), para testa
    atual (se houver) como linha de base** — sem isso o 1º cliente passaria no teste "Id mudou" lendo o painel de
    quem já estava selecionado. Após o clique, só aceitar a leitura quando
    `Nome do painel == título` **ou** `Id` mudou vs. cliente anterior. Título igual ao do anterior → esperar o
-   **tempo cheio** e marcar "possível painel repetido". Espera máx. **6000 ms**, polling curto; **400 ms** de pausa
+   **tempo cheio** e marcar "possível painel repetido".
+   **Decisão do BM (timeout com título repetido):** passados os 6 s, **reaproveita a leitura atual**, marca "possível painel
+   repetido (título igual ao anterior; leitura reaproveitada)" no relatório e **NÃO cai no nome** (pior caso = linha em
+   branco/duplicado visível, nunca selo na linha errada; título como nome poderia casar homônimo). Mesma pessoa → o card de
+   cima grava, o de baixo vira duplicado (§6.8); pessoa diferente com o mesmo título → duplicado + linha dela em branco. Espera máx. **6000 ms**, polling curto; **400 ms** de pausa
    entre clientes. Estourou → "informação não apareceu" → tenta pelo nome. Painel com Id `tunnel` e sem Telefone → nome.
 4. `resolverCliente`; `ambiguo` → `ui.pedirDecisaoNome` (**pausa**; botões *escolher*/*pular*/*parar tudo*); depois segue.
 5. **Pausa longa (suposição desta rodada, §6.15 não fixa o número): decisão de nome sem resposta por 120 s ⇒
@@ -351,6 +355,11 @@ Painel em shadow root próprio (ids/estilos isolados): seletor de arquivo `.xlsx
 diálogo de decisão de nome (candidatos com nome, telefone, nº da linha; *escolher* / *pular* / *parar tudo*);
 botões **Parar** e **Baixar parcial**; progresso; área do
 **relatório** com botão *Copiar*. Textos em pt-BR. O painel **nunca** chama o DOM do Blip (só `main`/`execucao` via portas).
+**Portas do `ui` que o painel implementa:** além de `confirmar`/`pedirDecisaoNome`/`progresso`/`baixarParcial`, também
+`baixarFinal(bytes,nome)` (dispara o download) e `finalizado({estado, motivo, relatorio})` (mostra estado, motivo e o
+relatório **copiável**, incluindo o rótulo de "possível painel repetido").
+**No `main`:** `relogio` real — `agora=Date.now`, `esperar=ms=>new Promise(r=>setTimeout(r,ms))` e `limite(ms)` com
+`setTimeout`/`clearTimeout` (não pode manter a execução travada; a espera de 120 s corre em paralelo à decisão).
 **Teste:** coberto pelos e2e da Tarefa 12 (preencher campos, ver diálogos, copiar relatório).
 **Commit:** `painel: interface do bookmarklet em shadow DOM`.
 

@@ -53,7 +53,9 @@ export function criarExecucao({ blip, relogio, ui, planilha, opcoes = {} }) {
       if (relogio.agora() - t0 >= ESPERA_PAINEL_MS) break;
       await relogio.esperar(POLL_MS);
     }
-    // estourou o tempo
+    // Estourou o tempo. DECISÃO (BM): título igual ao do anterior ⇒ reaproveita a leitura atual e marca "possível painel
+    // repetido"; NÃO cai no nome. Pior caso = linha em branco / duplicado no relatório, nunca selo na linha errada
+    // (título usado como nome poderia casar um homônimo).
     if (repetidoTitulo && ultimo) return { leitura: ultimo, repetido: true, apareceu: true };
     return { leitura: null, repetido: false, apareceu: false }; // "informação não apareceu" → só o título/nome do card
   }

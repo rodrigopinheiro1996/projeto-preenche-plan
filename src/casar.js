@@ -3,6 +3,8 @@
 import { extrairTelefones, telefonesIguais, telefoneDoId, normalizarTelefone, pareceTelefone } from './telefone.js';
 import { normalizarNome, tokens, semNomeUtilizavel, semParenteses, tokensContidos } from './nome.js';
 
+export const ROTULO_PAINEL_REPETIDO = 'possível painel repetido (título igual ao anterior; leitura reaproveitada)';
+
 export const SELOS_CONHECIDOS = ['Falha', 'Enviada', 'Entregue', 'Lida'];
 
 /** @param linhas [{linha, celulas}] (de abrirXlsx)  @param {{colNome:string, colTelefones:string}} cols */
@@ -111,7 +113,7 @@ export function consolidar({ fotoCards, resolucoes, linhas, opcoes = {} }) {
 
   for (const r of [...resolucoes].sort((a, b) => a.card - b.card)) {
     const c = fotoCards[r.card];
-    if (r.painelRepetido) rel.painelRepetido.push({ card: r.card, titulo: c.titulo });
+    if (r.painelRepetido) rel.painelRepetido.push({ card: r.card, titulo: c.titulo, rotulo: ROTULO_PAINEL_REPETIDO });
     if (r.sumiu || !r.resultado) { rel.pulados.sumiu++; continue; }
     const res = r.resultado;
     for (const av of res.avisos ?? []) {

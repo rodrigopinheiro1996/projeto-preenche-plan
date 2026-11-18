@@ -144,6 +144,24 @@ test('título repetido: espera o tempo cheio e marca possível painel repetido',
   assert.deepEqual([...ultima(t.planilha)], [[5, 'Lida']]);
 });
 
+test('título repetido + painel que nunca muda: 6000 ms, 1 gravação (a de cima), 1 item rotulado, sem cair no nome', async () => {
+  // painel com telefone da linha 2 (Ana) mas título/nome "Daniel Rocha" (linha 5): se caísse no nome, gravaria na 5.
+  const fixo = painel('Daniel Rocha', '71900000001', '5571900000001@wa.gw.msging.net');
+  const t = montar({
+    cards: [card('Daniel Rocha', { selo: 'Lida' }), card('Daniel Rocha', { horario: '2 days', selo: 'Enviada' })],
+    paineis: { 'Daniel Rocha': fixo },
+  });
+  await t.exec.iniciar();
+  assert.equal(t.relogio.t, 400 + 6000); // pausa entre clientes + espera cheia do 2º card
+  assert.equal(t.planilha.gravacoes.length, 1);
+  assert.deepEqual([...ultima(t.planilha)], [[2, 'Lida']]); // só a do card de cima; nada na linha 5 (nome)
+  const rel = t.ui.finalizados[0].relatorio;
+  assert.equal(rel.painelRepetido.length, 1);
+  assert.equal(rel.painelRepetido[0].rotulo, 'possível painel repetido (título igual ao anterior; leitura reaproveitada)');
+  assert.equal(rel.duplicados.length, 1);
+  assert.equal(t.ui.decisoesPedidas.length, 0);
+});
+
 test('pausa de 400 ms entre clientes (e não depois do último)', async () => {
   const t = montar({
     cards: [card('Ana'), card('Bruno'), card('Carla')],
