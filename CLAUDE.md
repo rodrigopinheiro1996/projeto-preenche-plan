@@ -17,7 +17,10 @@ Decisões-chave (resumo; a spec manda):
 - Telefone na planilha = `71981825172` (11 dígitos); no Blip vem `+55 (71) 98182-5172` ou Id `55…@wa.gw.msging.net`.
 - Nome ambíguo (2+ candidatos) → **pausa** e pede decisão ao BM; depois segue até o fim.
 - Linha da planilha **sem card** (cliente saiu da fila = respondeu) → grava **`Respondido`**, só se a execução
-  chegou ao fim e não sobrou card não resolvido (senão fica em branco). `N. localizado` só no relatório.
+  chegou ao fim; se sobrou card não identificado, o painel pergunta uma vez se grava mesmo assim (a planilha
+  sai sempre completa; relatório é só plano B). Premissa: todo card da fila tem linha
+  na planilha; card que não casa = anomalia → relatório "não identificado, verificar manualmente" (nada é
+  gravado, não acrescenta linhas/abas). `N. localizado` não vai para a planilha.
 - Selos do Blip gravados exatos: `Enviada`, `Lida`, `Entregue`, `Falha`.
 - Filtro de campanha (padrão `acao_reclameaqui`) e campo "últimos N clientes" (N primeiros do topo, após o filtro).
 - Proteção contra painel velho: só lê Informações quando `Nome` bate com o card ou o `Id` mudou.

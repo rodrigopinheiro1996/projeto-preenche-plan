@@ -110,13 +110,21 @@ Classes com hash (`Yv6Nb-…==`, `sc-…`, `nth-child`) **mudam a cada deploy: n
     toda linha (com Retorno vazio, ou todas se "sobrescrever") que nenhum card casou. Regras de segurança:
     - **só grava se a execução chegou ao fim da lista**; se parar/der erro/Parar, as linhas não visitadas
       ficam **em branco**;
-    - **só grava se todos os cards verificados foram resolvidos** (casaram com uma linha ou têm telefone/nome
-      que decididamente não está na planilha). Se sobrou card **não resolvido** (sem telefone e sem nome
-      utilizável, ou pulado pelo BM numa pausa de nome), ele pode ser dono de alguma linha: as linhas sem card
-      ficam **em branco** e o relatório explica o motivo;
-    - linhas que casaram com card recebem o **selo exato do Blip** (§6.5), nunca `Respondido`.
-    `N. localizado` **deixa de ser gravado na planilha**. Fica só como termo do **relatório** para card do Blip
-    que **não casou com nenhuma linha** (não há onde gravar).
+    - **a planilha sai sempre completa**: se **nenhum** card ficou não identificado, grava `Respondido` em todas
+      as linhas sem card. Se **sobrou** card não identificado (sem telefone e sem nome utilizável, ou pulado
+      pelo BM numa pausa de nome), ele pode ser dono de uma dessas linhas: o painel pergunta **uma vez**
+      "K cards ficaram sem identificar. Marcar as M linhas restantes como Respondido mesmo assim?" com os
+      botões **Sim, gravar** (destaque/padrão) e **Deixar em branco**. Em qualquer caso a planilha é baixada
+      na hora. Cards não identificados **não** pausam a execução (a pausa é só para nome repetido, §6.6);
+    - linhas que casaram com card recebem o **selo exato do Blip** (§6.5), nunca `Respondido`;
+    - **premissa operacional do BM**: o bm é rodado **dentro de 24 h do envio**, então nenhuma mensagem
+      expirou e **sumir da lista = respondeu** (o `Respondido` é confiável). Se rodar depois, mensagens
+      expiradas também somem da lista e seriam marcadas `Respondido` por engano — avisar no painel.
+    `N. localizado` **não é gravado na planilha**. Premissa do BM: o envio é feito para **todos** os contatos da
+    própria planilha, então **todo card da fila deve ter uma linha**. Card que não casa com nenhuma linha é
+    **anomalia** (bm não conseguiu identificar o cliente): vai ao **relatório** como "não identificado — verificar
+    manualmente" (com nome e telefone lidos) e **nada é gravado** por causa dele. Não acrescentar linhas nem
+    abas à planilha.
 11. **Filtro de campanha**: campo editável, padrão **`acao_reclameaqui`**; vazio = todas. Cards de outra
     campanha são ignorados e só contados no relatório.
 12. **Quantos verificar**: campo "últimos **N** clientes" (vazio = todos). Conta os **N primeiros cards do topo**
