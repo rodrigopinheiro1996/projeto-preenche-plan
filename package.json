@@ -1,0 +1,16 @@
+{
+  "name": "preenche-plan",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Bookmarklet que preenche planilha xlsx com o status das mensagens ativas do Blip",
+  "scripts": {
+    "test": "node --test \"tests/unit/*.test.js\"",
+    "e2e": "node --test \"tests/e2e/*.test.js\"",
+    "build": "node scripts/build.mjs",
+    "check": "npm test && npm run build && npm run e2e"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}
