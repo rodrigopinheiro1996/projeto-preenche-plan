@@ -8,8 +8,8 @@ export const CLIENTE_TERCEIRO = { id: '5571999999999@wa.gw.msging.net', nome: 'T
 const wa = (n11) => `55${n11}@wa.gw.msging.net`;
 const tel = (n11) => `+55 (${n11.slice(0, 2)}) ${n11.slice(2, 7)}-${n11.slice(7)}`;
 const tunnel = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}@tunnel.msging.net`;
-const cliente = (n11, nome) => ({ id: wa(n11), nome, telefone: tel(n11) });
-const semTelefone = (n, nome) => ({ id: tunnel(n), nome, telefone: '' });
+export const cliente = (n11, nome) => ({ id: wa(n11), nome, telefone: tel(n11) });
+export const semTelefone = (n, nome) => ({ id: tunnel(n), nome, telefone: '' });
 
 /** 8 cards cobrindo os formatos de título vistos no Blip real (§4). Topo = mais recente. */
 export function cenarioBase() {
@@ -50,3 +50,18 @@ export const comAtraso = (c, ms) => ({ ...c, atrasoPainel: ms });
 export const comPainelNuncaAtualiza = (c) => ({ ...c, painelNuncaAtualiza: true });
 export const comPainelInicial = (c, cl) => ({ ...c, painelInicial: cl });
 export const comPaginacao = (c, { inicial, passo }) => ({ ...c, paginacao: { inicial, passo } });
+
+export const criarCard = (titulo, horario, campanha, selo, cl) => ({ titulo, horario, campanha, selo, bot: 'Bot Fictício', cliente: cl });
+
+/** 4 clientes, 4 selos, todos casam por telefone com tests/fixtures/modelo.xlsx (linhas 2–5). */
+export function cenarioFeliz() {
+  return {
+    ...cenarioBase(),
+    cards: [
+      criarCard('Ana Maria Souza', '12:36 PM', CAMPANHA_A, 'Lida', cliente('71900000001', 'Ana Maria Souza')),
+      criarCard('Bruno Lima', '11:10 AM', CAMPANHA_A, 'Falha', cliente('71900000002', 'Bruno Lima')),
+      criarCard('Carla Dias', '19 hours', CAMPANHA_A, 'Enviada', cliente('71900000003', 'Carla Dias')),
+      criarCard('Daniel Rocha', '2 days', CAMPANHA_A, 'Entregue', cliente('71900000004', 'Daniel Rocha')),
+    ],
+  };
+}

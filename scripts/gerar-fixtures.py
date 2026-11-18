@@ -89,6 +89,21 @@ def esparsas():
                novas={"xl/sharedStrings.xml": compartilhadas('')})
 
 
+def e2e_base():
+    """Planilha dos e2e com o cenarioBase da página falsa: nome parcial, apelido, ambíguo, sem card, 10 dígitos, preenchida."""
+    wb, ws = novo()
+    ws.append(CAB)
+    ws.append([1, "Ana Maria Souza", "00000000001", "Cobrança", 71900000001, "L1", "Novo", None])
+    ws.append([2, "Bruno Lima", "00000000002", "Cobrança", 71900000002, "L1", "Respondido", None])
+    ws.append([3, "Carla Dias", "00000000003", "Suporte", 71900000003, "L2", "Fechado", None])
+    ws.append([4, "Roseane Alves", "00000000004", "Suporte", 71900000004, "L2", "Novo", None])
+    ws.append([5, "Ana Souza", "00000000005", "Suporte", 71900000005, "L2", "#N/A", None])
+    ws.append([6, "Fabio Lima", "00000000006", "Cobrança", 71900000006, "L3", "Novo", None])
+    ws.append([7, "Daniel Rocha", "00000000007", "Cobrança", 71900000007, "L3", "Novo", None])   # nunca tem card
+    ws.append([8, "Eva Nunes", "00000000008", "Suporte", 7190000008, "L3", "Fechado", "Lida"])    # 10 dígitos + Retorno preenchido
+    wb.save(caminho("e2e-base.xlsx"))
+
+
 def vazias_estilizadas():
     wb, ws = novo()
     ws.append(CAB)
@@ -123,6 +138,6 @@ def editar_zip(arquivo, edicoes, novas=None):
 
 if __name__ == "__main__":
     os.makedirs(PASTA, exist_ok=True)
-    for f in (modelo, sem_retorno, aba_segunda, esparsas, vazias_estilizadas):
+    for f in (modelo, sem_retorno, aba_segunda, esparsas, vazias_estilizadas, e2e_base):
         f()
     print("fixtures geradas em", os.path.abspath(PASTA))
