@@ -10,11 +10,18 @@ export const MARCADOR = 'preenche-plan-bm';
 export const relogioReal = {
   agora: () => Date.now(),
   esperar: (ms) => new Promise((r) => setTimeout(r, ms)),
-  limite: (ms) => new Promise((r) => setTimeout(r, ms)),
+  limite: (ms) => {
+    let id;
+    const p = new Promise((r) => { id = setTimeout(r, ms); });
+    p.cancelar = () => clearTimeout(id);
+    return p;
+  },
 };
 
 export function iniciarBm(janela = window) {
-  if (janela.__preenchePlan?.painel?.host?.isConnected) { janela.__preenchePlan.painel.mostrar(); return janela.__preenchePlan; }
+  // Idempotente: um 2º clique no favorito só reexibe o MESMO painel (mesmo se removido da tela) — nunca cria outro,
+  // nem inicia uma 2ª execução em paralelo.
+  if (janela.__preenchePlan?.painel) { janela.__preenchePlan.painel.mostrar(); return janela.__preenchePlan; }
 
   let xlsx = null;
   let nomeBase = 'planilha';

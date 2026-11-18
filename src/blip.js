@@ -4,6 +4,7 @@
 // Seletor sem resultado = erro explícito pedindo o outerHTML (nunca valor inventado).
 
 const SEL_CARDS = '.contact-list-wrapper article';
+const SEL_LISTA = '.contact-list-wrapper';
 const SEL_ROLAGEM = '.thin-scrollbar';
 const SEL_ABAS = 'bds-tab-group.contact-info-header-wrapper';
 const SEL_ABA_ITEM = 'div.tab_group__header__itens__item';
@@ -37,7 +38,7 @@ export function criarBlip({ doc = document, esperar = (ms) => new Promise((r) =>
 
   /** Rola até a contagem de cards estabilizar, volta ao topo e tira a foto (título, horário, campanha, selo). */
   async function fotografarFila() {
-    const rolagem = doc.querySelector(SEL_ROLAGEM);
+    const rolagem = doc.querySelector(SEL_LISTA)?.closest(SEL_ROLAGEM) ?? doc.querySelector(SEL_ROLAGEM);
     if (!rolagem) throw new Error(pedirHtml('Não achei o container rolável da lista de cards.'));
     let ultimo = -1;
     let iguais = 0;

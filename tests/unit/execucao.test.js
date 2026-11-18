@@ -13,7 +13,12 @@ function criarRelogio() {
     for (const l of r.limites) if (!l.feito && r.t >= l.ate) { l.feito = true; l.resolver(); }
   };
   r.esperar = (ms) => { r.esperas.push(ms); r.avancar(ms); return Promise.resolve(); };
-  r.limite = (ms) => new Promise((resolver) => r.limites.push({ ate: r.t + ms, resolver, feito: false }));
+  r.cancelados = 0;
+  r.limite = (ms) => {
+    const p = new Promise((resolver) => r.limites.push({ ate: r.t + ms, resolver, feito: false }));
+    p.cancelar = () => { r.cancelados++; };
+    return p;
+  };
   return r;
 }
 
@@ -101,6 +106,26 @@ test('linha de base: abre a aba Contato e lê o painel ANTES do 1º clique de ca
   const t = montar({ cards: [card('Ana')], paineis: { Ana: painel('Ana', '71900000001', 'a@wa.gw.msging.net') } });
   await t.exec.iniciar();
   assert.deepEqual(t.blip.chamadas.ordem.slice(0, 3), ['contato', 'clique', 'contato']);
+});
+
+test('painel do card A chega ATRASADO (após o timeout, durante a pausa): não vale para o card B', async () => {
+  const t = montar({
+    cards: [card('Ana Maria Souza'), card('Bruno Lima')],
+    paineis: { 'Ana Maria Souza': painel('Ana Maria Souza', '71900000001', 'a@wa.gw.msging.net'), 'Bruno Lima': painel('Bruno Lima', '71900000002', 'b@wa.gw.msging.net') },
+    atraso: { 'Ana Maria Souza': 6200, 'Bruno Lima': 1000 }, // A só aparece 200 ms depois de estourar os 6 s
+  });
+  await t.exec.iniciar();
+  // A resolvido pelo nome (timeout); B pelo próprio painel. Sem a base renovada, B leria o painel de A (linha 2) e viraria duplicado.
+  assert.deepEqual([...ultima(t.planilha)], [[2, 'Lida'], [3, 'Lida']]);
+  assert.equal(t.ui.finalizados[0].relatorio.duplicados.length, 0);
+});
+
+test('prazo de 120 s é cancelado (clearTimeout) assim que o BM decide', async () => {
+  const t = montar({
+    cards: [card('Lima')], paineis: { Lima: painel('Lima', '', 'x@tunnel.msging.net') }, ui: { decisoes: [{ acao: 'pular' }] },
+  });
+  await t.exec.iniciar();
+  assert.equal(t.relogio.cancelados, 1);
 });
 
 test('confirmar() devolve false: zero cliques, nada gravado', async () => {

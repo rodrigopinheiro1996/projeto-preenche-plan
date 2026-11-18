@@ -53,4 +53,8 @@ Tudo foi testado contra uma **página falsa** montada a partir dos fatos do DOM 
 6. **Planilhas reais do Excel** além das geradas pelo openpyxl + XML cru editado (data descriptor, comentário no EOCD,
    notação científica, `sharedStrings`). Fórmulas, mesclagens, tabelas e `ZIP64` não foram exercitados.
 
+7. **Horários relativos** ("19 hours") podem virar "20 hours" durante uma execução longa; o card é reencontrado por
+   título+campanha+horário (spec §6.13), então ele pode não ser achado e entra no relatório como "sumiu antes do clique".
+   Por isso essa contagem pode ser diferente de zero sem nada de errado.
+
 Se algum seletor falhar no site real, o bm para com erro e pede o **outerHTML** do trecho (nunca inventa valor).

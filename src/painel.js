@@ -69,6 +69,7 @@ export function criarPainel({ doc = document, aoArquivo, aoIniciar, aoParar, aoB
     $('pp-iniciar').disabled = !estado.arquivoPronto || estado.emExecucao;
     $('pp-parar').disabled = !estado.emExecucao;
     $('pp-parcial').disabled = !estado.emExecucao;
+    $('pp-fechar').disabled = estado.emExecucao; // não esconder o Parar no meio da execução
     for (const id of ['pp-arquivo', 'pp-col-nome', 'pp-col-tel', 'pp-col-destino', 'pp-campanha', 'pp-n', 'pp-sobrescrever']) {
       $(id).disabled = estado.emExecucao || (id.startsWith('pp-col') && !estado.arquivoPronto);
     }
@@ -93,7 +94,7 @@ export function criarPainel({ doc = document, aoArquivo, aoIniciar, aoParar, aoB
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }
 
-  $('pp-fechar').addEventListener('click', () => host.remove());
+  $('pp-fechar').addEventListener('click', () => { host.style.display = 'none'; }); // só esconde: reabrir pelo favorito
   $('pp-arquivo').addEventListener('change', async (ev) => {
     const f = ev.target.files?.[0];
     estado.arquivoPronto = false; atualizarBotoes(); erro('');
@@ -178,7 +179,7 @@ export function criarPainel({ doc = document, aoArquivo, aoIniciar, aoParar, aoB
 
   return {
     host, ui,
-    mostrar() { host.style.display = ''; },
+    mostrar() { if (!host.isConnected) doc.body.appendChild(host); host.style.display = ''; },
     remover() { host.remove(); },
     /** Preenche os selects depois de ler a planilha. padrao = {nome, telefones, destino} (letras ou null). */
     definirPlanilha({ cabecalhos, padrao }) {

@@ -265,7 +265,7 @@ Cérebro das regras, **sem DOM nem relógio**.
 Orquestra com **portas injetadas** (nada de DOM/`setTimeout` direto), para testar tudo sem navegador.
 
 **Portas:** `blip` = `{fotografarFila(), reencontrarCard(item), clicarCard(el), abrirContato(), lerPainel()}`;
-`relogio` = `{agora(), esperar(ms), limite(ms)}` (`limite(ms)` = promessa que resolve após `ms` **sem travar** a execução; usada só no prazo de 120 s da decisão de nome); `ui` = `{confirmar(info), pedirDecisaoNome(candidatos), progresso(info), baixarParcial(bytes,nome), baixarFinal(bytes,nome), finalizado({estado, motivo, relatorio})}`; `planilha` = `{linhas, colNome, colTelefones, colDestino, gravar(gravacoes)}`.
+`relogio` = `{agora(), esperar(ms), limite(ms)}` (`limite(ms)` = promessa que resolve após `ms` **sem travar** a execução, com `.cancelar()` opcional (`clearTimeout`) chamado quando o BM decide; usada só no prazo de 120 s da decisão de nome); `ui` = `{confirmar(info), pedirDecisaoNome(candidatos), progresso(info), baixarParcial(bytes,nome), baixarFinal(bytes,nome), finalizado({estado, motivo, relatorio})}`; `planilha` = `{linhas, colNome, colTelefones, colDestino, gravar(gravacoes)}`.
 
 **Comportamento (cada item vira teste):**
 1. `fotografarFila` → filtra por campanha (vazio = todas; outras só contadas) → corta nos **N primeiros do topo**
@@ -278,6 +278,11 @@ Orquestra com **portas injetadas** (nada de DOM/`setTimeout` direto), para testa
    quem já estava selecionado. Após o clique, só aceitar a leitura quando
    `Nome do painel == título` **ou** `Id` mudou vs. cliente anterior. Título igual ao do anterior → esperar o
    **tempo cheio** e marcar "possível painel repetido".
+   **Nota de implementação (Tarefa 7, linha de base):** como o painel Informações só aparece na aba **Contato**, o orquestrador
+abre essa aba (clique permitido) e espera `ESPERA_BASE_MS` (300 ms) **antes** do 1º card para ler o Id de quem já estava
+selecionado; sem cliente selecionado, a base fica vazia. Sem isso o painel velho do cliente anterior passaria como "Id mudou".
+   **Base renovada a cada card:** logo antes de cada clique o orquestrador lê o painel que está na tela e usa o Id dele como base,
+   para que um painel que chegou **atrasado** (após um timeout) não passe como "Id mudou" para o card seguinte.
    **Decisão do BM (timeout com título repetido):** passados os 6 s, **reaproveita a leitura atual**, marca "possível painel
    repetido (título igual ao anterior; leitura reaproveitada)" no relatório e **NÃO cai no nome** (pior caso = linha em
    branco/duplicado visível, nunca selo na linha errada; título como nome poderia casar homônimo). Mesma pessoa → o card de
@@ -360,9 +365,6 @@ botões **Parar** e **Baixar parcial**; progresso; área do
 relatório **copiável**, incluindo o rótulo de "possível painel repetido").
 **No `main`:** `relogio` real — `agora=Date.now`, `esperar=ms=>new Promise(r=>setTimeout(r,ms))` e `limite(ms)` com
 `setTimeout`/`clearTimeout` (não pode manter a execução travada; a espera de 120 s corre em paralelo à decisão).
-**Nota de implementação (Tarefa 7, linha de base):** como o painel Informações só aparece na aba **Contato**, o orquestrador
-abre essa aba (clique permitido) e espera `ESPERA_BASE_MS` (300 ms) **antes** do 1º card para ler o Id de quem já estava
-selecionado; sem cliente selecionado, a base fica vazia. Sem isso o painel velho do cliente anterior passaria como "Id mudou".
 **Teste:** coberto pelos e2e da Tarefa 12 (preencher campos, ver diálogos, copiar relatório).
 **Commit:** `painel: interface do bookmarklet em shadow DOM`.
 

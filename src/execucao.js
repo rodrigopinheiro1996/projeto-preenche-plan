@@ -63,8 +63,9 @@ export function criarExecucao({ blip, relogio, ui, planilha, opcoes = {} }) {
 
   async function decidirNome(candidatos) {
     const decisao = ui.pedirDecisaoNome(candidatos);
-    const limite = relogio.limite(LIMITE_DECISAO_MS).then(() => 'limite');
-    const primeiro = await Promise.race([Promise.resolve(decisao).then(() => 'decisao'), limite]);
+    const prazo = relogio.limite(LIMITE_DECISAO_MS); // promessa com .cancelar() opcional (clearTimeout no relógio real)
+    const primeiro = await Promise.race([Promise.resolve(decisao).then(() => 'decisao'), prazo.then(() => 'limite')]);
+    prazo.cancelar?.();
     if (primeiro === 'limite') await baixarParcial(); // pausa longa: salva o já resolvido e segue esperando o BM
     return decisao;
   }
@@ -114,6 +115,10 @@ export function criarExecucao({ blip, relogio, ui, planilha, opcoes = {} }) {
         const el = await blip.reencontrarCard(card);
         if (!el) { resolucoes.push({ card: i, sumiu: true }); continue; }
 
+        // Base renovada a cada card: se o painel do cliente anterior (inclusive um que chegou atrasado, depois do
+        // timeout) já está na tela, o Id dele NÃO pode ser aceito como "mudou" para este cliente.
+        const naTela = await blip.lerPainel();
+        if (naTela?.id) idBase = naTela.id;
         await blip.clicarCard(el);
         await blip.abrirContato();
         const lido = await lerPainelDoCliente(card, tituloAnterior, idBase);
