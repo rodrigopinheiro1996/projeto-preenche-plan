@@ -1,0 +1,123 @@
+// Leitura (e, na Tarefa 5, escrita) de planilhas .xlsx por regex sobre o XML — sem DOM, roda em Node e no navegador.
+import { lerZip } from './zip.js';
+
+const dec = new TextDecoder();
+
+export function decodificarXml(s) {
+  return s
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&');
+}
+
+export function atributos(tag) {
+  const a = {};
+  for (const m of tag.matchAll(/([\w:.-]+)\s*=\s*"([^"]*)"/g)) a[m[1]] = decodificarXml(m[2]);
+  return a;
+}
+
+/** 'A'→1, 'Z'→26, 'AA'→27 */
+export function colunaParaNumero(letras) {
+  let n = 0;
+  for (const ch of letras) n = n * 26 + (ch.charCodeAt(0) - 64);
+  return n;
+}
+export function numeroParaColuna(n) {
+  let s = '';
+  for (; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
+  return s;
+}
+
+const textosDe = (xml) => [...xml.matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>|<t\s*\/>/g)].map((m) => decodificarXml(m[1] ?? '')).join('');
+
+function lerCompartilhadas(xml) {
+  if (!xml) return [];
+  return [...xml.matchAll(/<si>([\s\S]*?)<\/si>|<si\s*\/>/g)].map((m) =>
+    textosDe((m[1] ?? '').replace(/<rPh[\s\S]*?<\/rPh>/g, '')));
+}
+
+/** Valor numérico do <v>: inteiro como texto de inteiro (o Excel grava 7.1900000001E10). */
+function numeroComoTexto(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return String(v).trim();
+  return Number.isInteger(n) ? String(Math.round(n)) : String(n);
+}
+
+function valorDaCelula(attrs, corpo, compartilhadas) {
+  const v = /<v(?:\s[^>]*)?>([\s\S]*?)<\/v>/.exec(corpo);
+  const t = attrs.t;
+  if (t === 'inlineStr') return textosDe((/<is>([\s\S]*?)<\/is>/.exec(corpo) ?? [, ''])[1]);
+  if (!v) return '';
+  const bruto = decodificarXml(v[1]);
+  if (t === 's') return compartilhadas[Number(bruto)] ?? '';
+  if (t === 'str') return bruto;
+  if (t === 'b') return bruto === '1' ? 'VERDADEIRO' : 'FALSO';
+  if (t === 'e') return '';
+  return bruto.trim() === '' ? '' : numeroComoTexto(bruto);
+}
+
+const ERRO_XLSX = 'Arquivo inválido: não parece uma planilha .xlsx do Excel.';
+
+function caminhoDaAba(entradas, aba) {
+  const wb = entradas.get('xl/workbook.xml');
+  const rels = entradas.get('xl/_rels/workbook.xml.rels');
+  if (!wb || !rels) throw new Error(ERRO_XLSX);
+  const abas = [...dec.decode(wb.dados).matchAll(/<sheet\s[^>]*\/?>/g)].map((m) => atributos(m[0]));
+  const nomes = abas.map((a) => a.name);
+  const alvo = abas.find((a) => a.name?.normalize('NFC') === aba.normalize('NFC'));
+  if (!alvo) throw new Error(`A aba "${aba}" não existe nesta planilha. Abas encontradas: ${nomes.map((n) => `"${n}"`).join(', ')}.`);
+  const id = alvo['r:id'];
+  const rel = [...dec.decode(rels.dados).matchAll(/<Relationship\s[^>]*\/?>/g)].map((m) => atributos(m[0])).find((r) => r.Id === id);
+  if (!rel) throw new Error(ERRO_XLSX);
+  const t = rel.Target;
+  const caminho = t.startsWith('/') ? t.slice(1) : `xl/${t}`;
+  if (!entradas.has(caminho)) throw new Error(ERRO_XLSX);
+  return caminho;
+}
+
+const normalizarCabecalho = (s) => String(s ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
+
+/** Colunas por cabeçalho (sem acento/maiúscula). Ausente → null (o painel deixa o BM escolher). */
+export function detectarColunas(cabecalhos) {
+  const achar = (...nomes) => cabecalhos.find((c) => nomes.includes(normalizarCabecalho(c.texto)))?.coluna ?? null;
+  return { nome: achar('nome'), telefones: achar('telefones', 'telefone'), destino: achar('retorno') };
+}
+
+/**
+ * @returns {Promise<{entradas, caminhoAba, cabecalhos:{coluna,texto}[], linhas:{linha:number,celulas:Object}[]}>}
+ * `linhas` só tem linhas de dados (Nome ou Telefones não vazio); a linha 1 são os cabeçalhos.
+ */
+export async function abrirXlsx(uint8, { aba = 'AÇÃO' } = {}) {
+  const entradas = await lerZip(uint8);
+  const caminhoAba = caminhoDaAba(entradas, aba);
+  const ss = entradas.get('xl/sharedStrings.xml');
+  const compartilhadas = lerCompartilhadas(ss ? dec.decode(ss.dados) : '');
+  const xml = dec.decode(entradas.get(caminhoAba).dados);
+
+  const todas = []; // {linha, celulas}
+  for (const rm of xml.matchAll(/<row\b([^>]*?)(?:\/>|>([\s\S]*?)<\/row>)/g)) {
+    const linha = Number(atributos(rm[1]).r);
+    if (!linha) continue;
+    const celulas = {};
+    for (const cm of (rm[2] ?? '').matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+      const a = atributos(cm[1]);
+      const coluna = /^([A-Z]+)/.exec(a.r ?? '')?.[1];
+      if (!coluna) continue;
+      const valor = valorDaCelula(a, cm[2] ?? '', compartilhadas);
+      if (valor !== '') celulas[coluna] = valor;
+    }
+    todas.push({ linha, celulas });
+  }
+
+  const cab = todas.find((l) => l.linha === 1)?.celulas ?? {};
+  const cabecalhos = Object.entries(cab)
+    .map(([coluna, texto]) => ({ coluna, texto }))
+    .sort((x, y) => colunaParaNumero(x.coluna) - colunaParaNumero(y.coluna));
+  const { nome, telefones } = detectarColunas(cabecalhos);
+  const chaves = [nome, telefones].filter(Boolean);
+  const ehDado = (c) => (chaves.length ? chaves.some((k) => c[k] !== undefined) : Object.keys(c).length > 0);
+  const linhas = todas.filter((l) => l.linha > 1 && ehDado(l.celulas)).sort((a, b) => a.linha - b.linha);
+
+  return { entradas, caminhoAba, cabecalhos, linhas };
+}
