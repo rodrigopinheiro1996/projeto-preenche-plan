@@ -22,18 +22,19 @@ com N = 2–3 (P2). Gravar no spec §6.10/§6.12 (Tarefa 13).
 - Fluxo de dados: foto da fila → (por card) clique + aba Contato + leitura → `casar` → gravações em memória →
   `xlsx.definirCelulas` → `zip.gravarZip` → download da cópia.
 
-## Comandos (verificados no ambiente em 2026-11-18)
+## Comandos (ferramentas sondadas em 2026-11-18; os scripts só serão validados na Tarefa 0)
 
 | Ação | Comando |
 |---|---|
 | Instalar | `npm install` (só `esbuild` como devDependency) |
-| Testes unitários | `npm test` → `node --test tests/unit/` |
-| Testes e2e (Playwright) | `npm run e2e` → `node --test tests/e2e/` |
+| Testes unitários | `npm test` → `node --test "tests/unit/*.test.js"` |
+| Testes e2e (Playwright) | `npm run e2e` → `node --test "tests/e2e/*.test.js"` |
 | Tudo | `npm run check` → unit + build + e2e |
 | Build | `npm run build` → `dist/instalar.html` e `dist/bm.js` |
 | Regerar fixtures | `python3 scripts/gerar-fixtures.py` (openpyxl 3.1.5 disponível) |
 
 Fatos de ambiente (não "consertar"):
+- **`node --test <diretório>` FALHA no Node 22** (testado: `# fail 1`). Usar **glob entre aspas** (`"tests/unit/*.test.js"`), que funciona.
 - Node v22; `CompressionStream`/`DecompressionStream` nativos (também em `node`).
 - **`import 'playwright'` em ESM falha** (vive em `/opt/node-tools`). Usar
   `createRequire(import.meta.url)('playwright')` — centralizado em `tests/helpers/playwright.js`.
@@ -147,6 +148,10 @@ linhas:[{linha:n, celulas:{A:valor,...}}]}`.
 - Achar a aba por **`xl/workbook.xml` + `xl/_rels/workbook.xml.rels`** (nunca supor `sheet1.xml`). Aba inexistente →
   erro pt-BR listando as abas existentes.
 - Valores: `sharedStrings` (só leitura), `t="inlineStr"`, `t="str"`, números (`71900000001` como **número**), vazio.
+  **Célula numérica (`<v>` sem `t` ou `t="n"`): `Number(v)` → inteiro (`String(Math.round(n))`), nunca "só dígitos" do
+  texto** — o Excel grava `7.1900000001E10`. Vetor: `<v>7.1900000001E10</v>` → `'71900000001'`.
+- **Linha de dados** = Nome **ou** Telefones não vazio. Linhas só com estilo/vazias são ignoradas (nunca recebem
+  `Respondido`). Fixture `linhas-vazias-estilizadas.xlsx`.
 - Decodificar entidades XML. Linha 1 = cabeçalhos.
 - `detectarColunas(cabecalhos) → {nome, telefones, destino}` por cabeçalho (`Nome`, `Telefones`, `Retorno`; sem
   acento/maiúscula). Ausente → `null` (o painel deixa o BM escolher).
@@ -154,7 +159,11 @@ linhas:[{linha:n, celulas:{A:valor,...}}]}`.
   `Retorno` vazia), `sem-retorno.xlsx` (só até `Lote`), `aba-segunda.xlsx` (`AÇÃO` não é a 1ª aba), `celulas-esparsas.xlsx`
   (linhas com células faltando, linha de telefone múltiplo `71900000001 / 71900000002`, telefone como número e como texto).
 
-**Testes:** cabeçalhos de `modelo.xlsx`; `aba-segunda.xlsx` acha `AÇÃO` pelo rels; telefone numérico lido como
+**Fixtures com XML cru:** `gerar-fixtures.py` gera com openpyxl e depois **edita o XML da aba dentro do zip**
+(notação científica no `<v>`, `<c r="H5" s="7"/>` vazia estilizada, linhas vazias estilizadas) — openpyxl sozinho
+não reproduz as manias do Excel.
+**Testes:** cabeçalhos de `modelo.xlsx`; `<v>7.1900000001E10</v>` → `71900000001`; linhas vazias estilizadas não
+aparecem em `linhas`; `aba-segunda.xlsx` acha `AÇÃO` pelo rels; telefone numérico lido como
 `71900000001`; célula com 2 números; aba inexistente → erro; `detectarColunas` em `sem-retorno.xlsx` → `destino: null`.
 **Rodar:** `node --test tests/unit/xlsx-leitura.test.js`. **Commit:** `xlsx: leitura de abas, cabeçalhos e linhas`.
 
@@ -168,6 +177,8 @@ Altera **só** o XML da aba e cria no máximo a coluna de destino:
   outras); linha inexistente → criar `<row r>` na posição certa.
 - Coluna de destino inexistente (`sem-retorno.xlsx`): cria cabeçalho `Retorno` na **próxima coluna vazia** e
   atualiza `<dimension ref>`. Estilos/`cols`/formatação/demais abas/`sharedStrings`: **bytes idênticos**.
+- Se já existe `<c r="H5" s="7"/>` (vazia, estilizada): **substituir no lugar mantendo `s`**; nunca inserir 2ª `<c>`
+  com o mesmo `r`. Teste: contar `<c r="H5"` = 1 e `s="7"` preservado.
 - **Não sobrescreve** célula não vazia a menos que `sobrescrever` (a decisão é do chamador; esta função recebe só
   as gravações finais).
 
@@ -193,13 +204,15 @@ Cérebro das regras, **sem DOM nem relógio**.
      Telefone × Id ⇒ vale o Telefone e `avisos:['divergencia-telefone-id']`;
   2. com telefone: casa por `telefonesIguais` com **qualquer** telefone da linha; achou 1 → `{tipo:'casou', linha,
      por:'telefone'}`; achou 2+ linhas com o mesmo telefone → `{tipo:'ambiguo', candidatos}` (pausa);
-     telefone sem linha **e** sem nome utilizável → `{tipo:'nao_identificado'}`; telefone sem linha mas com nome →
-     cai no nome (§6.7: telefone vale quando casa; divergência vira aviso);
+     **telefone lido mas sem linha → `{tipo:'nao_identificado', telefone, nome}` — NÃO cai no nome** (§6.6: nome só
+     quando **não há** telefone; §6.10: card sem linha é anomalia → relatório com nome e telefone lidos, nada
+     gravado; evita gravar selo em homônimo). Telefone que casa **2+ linhas** (mesmo número repetido na planilha):
+     **vai ao relatório como `telefone-repetido-na-planilha`, sem pausa** (a pausa é só para nome repetido, §6.10);
   3. sem telefone → nome (`nomePainel` ou, se vazio, `titulo`): nome completo igual e **1** linha → `casou`
      `por:'nome'`; todos os tokens contidos: **1** candidato → `casou` `por:'nome-parcial'` (vai ao relatório);
      **2+** → `{tipo:'ambiguo', candidatos:[{linha,nome,telefones}]}`; nada → 2ª tentativa **sem parênteses**; ainda
      nada → `nao_identificado`; "sem nome utilizável" → `nao_identificado` **sem pausa**;
-  4. telefone × nome divergentes (telefone casou a linha X, nome casa só a linha Y): vale X + aviso
+  4. telefone × nome divergentes (telefone casou a linha X, nome do Blip aponta outra linha): vale X + aviso
      `divergencia-telefone-nome`.
 - `aplicarEscolha(resultadoAmbiguo, {acao:'escolher', linha} | {acao:'pular'}) → {tipo:'casou'|'pulado'}`.
 - `consolidar({fotoCards, resolucoes, linhas, opcoes:{sobrescrever, n, campanha, chegouAoFim}, decisaoRespondido})
@@ -223,6 +236,8 @@ Cérebro das regras, **sem DOM nem relógio**.
 | Id `…@tunnel` sem telefone, nome completo igual, 1 linha | `casou` `por:'nome'` |
 | Título `+55 (71) 90000-0001`, painel vazio | casa pelo título |
 | Telefone do painel ≠ telefone do Id | usa o painel + aviso |
+| Telefone lido sem linha, nome do painel igual a uma linha existente | `nao_identificado` (NÃO casa por nome), relatório com nome+telefone |
+| Mesmo telefone em 2 linhas da planilha | relatório `telefone-repetido-na-planilha`, sem pausa, nada gravado |
 | Telefone de 10 dígitos na planilha, 11 no Blip (últimos 8) | casa |
 | Célula de planilha com 2 números, 2º igual ao do Blip | casa |
 | Nome parcial, 1 candidato | `casou` + `por:'nome-parcial'` |
@@ -255,20 +270,28 @@ progresso(info), baixarParcial(bytes,nome)}`; `planilha` = `{linhas, colNome, co
 2. Para cada item: `reencontrarCard` por **título+campanha+horário**; sumiu/mudou → **pula e anota** (não para).
    Clicar **sempre** o card e **sempre** abrir Contato (mesmo título parecendo telefone). Só essas duas ações existem
    na porta `blip` — por construção o orquestrador não consegue clicar em Enviar/Atualizar.
-3. **Proteção contra painel velho (§6.4, a regra mais importante):** após o clique, só aceitar a leitura quando
+3. **Proteção contra painel velho (§6.4, a regra mais importante):** **antes do 1º clique, ler o `Id` do painel
+   atual (se houver) como linha de base** — sem isso o 1º cliente passaria no teste "Id mudou" lendo o painel de
+   quem já estava selecionado. Após o clique, só aceitar a leitura quando
    `Nome do painel == título` **ou** `Id` mudou vs. cliente anterior. Título igual ao do anterior → esperar o
    **tempo cheio** e marcar "possível painel repetido". Espera máx. **6000 ms**, polling curto; **400 ms** de pausa
    entre clientes. Estourou → "informação não apareceu" → tenta pelo nome. Painel com Id `tunnel` e sem Telefone → nome.
 4. `resolverCliente`; `ambiguo` → `ui.pedirDecisaoNome` (**pausa**; botões *escolher*/*pular*/*parar tudo*); depois segue.
-5. **Parar** (botão ou erro ambíguo): encerra, **baixa parcial automaticamente**, linhas não visitadas **em branco**,
+5. **Pausa longa (suposição desta rodada, §6.15 não fixa o número): decisão de nome sem resposta por 120 s ⇒
+   baixa a parcial automaticamente** (a execução continua pausada, sem gravar nada além do já resolvido).
+   Teste com relógio simulado: 119 s ⇒ nada; 120 s ⇒ `baixarParcial` 1×.
+6. **Parar** (botão ou erro ambíguo): encerra, **baixa parcial automaticamente**, linhas não visitadas **em branco**,
    sem `Respondido`. Qualquer exceção inesperada = parar e mostrar o motivo (nada de adivinhar).
-6. Fim da lista: `consolidar(chegouAoFim:true)`; se `precisaPerguntar` → `ui.perguntarRespondido(K,M)` **uma vez**
-   (padrão destacado: *Sim, gravar*); baixar na hora. **Nunca duplicar ação** (cada card visitado no máx. 1×; reentrada
+7. Fim da lista: `consolidar(chegouAoFim:true)`; se `precisaPerguntar` → `ui.perguntarRespondido(K,M)` **uma vez**
+   (padrão destacado: *Sim, gravar*); baixar na hora. **Contagem de K**: card que sumiu entre a foto e o clique conta como **não identificado** (pode ser dono de uma
+   linha) — entra em K e é citado no relatório como "pulado (sumiu)". **Nunca duplicar ação** (cada card visitado no máx. 1×; reentrada
    bloqueada por flag de execução).
-7. `baixarParcial` disponível a qualquer momento (planilha só com o que já foi resolvido, sem `Respondido`).
+8. `baixarParcial` disponível a qualquer momento (planilha só com o que já foi resolvido, sem `Respondido`).
 
 **Testes (`tests/unit/execucao.test.js`, portas falsas + relógio simulado que acumula `esperar`):**
 - espera de painel velho: painel só muda após 2 s ⇒ lê o novo, não o velho; painel nunca muda ⇒ 6 s e vai ao nome;
+- **1º cliente com outro já selecionado**: painel inicial = Id de terceiro, painel do 1º card atrasa 2 s ⇒ a leitura
+  antiga (Id da linha de base) é **rejeitada**; só a nova é aceita;
 - título repetido ⇒ espera cheia + `possivelPainelRepetido`; pausa de 400 ms entre clientes (soma do relógio);
 - N=2 com 3 campanhas misturadas ⇒ só 2 do topo **depois** do filtro; sem `Respondido`; confirmação avisa;
 - card some entre foto e clique ⇒ pula, anota, segue; `ui.confirmar` retorna `false` ⇒ zero chamadas a `clicarCard`;
@@ -313,8 +336,9 @@ Montada **só** a partir dos fatos do §4 (dados fictícios), configurável por 
 - `cenarios.js` exporta cenários: títulos telefone/emoji/Fraktur/apelido/espaço no fim, Id `tunnel`, painel velho,
   cliente duplicado, nome ambíguo, 2 campanhas, selos `Lida/Falha/Enviada/Entregue`, 60 cards.
 
-**Teste:** `tests/e2e/pagina-falsa.test.js` — a página carrega no Chromium e o `blip.js` (via bundle) fotografa 60
-cards, abre Contato, lê o painel. **Commit:** `testes: página falsa do Blip a partir dos fatos do DOM`.
+**Teste:** `tests/e2e/pagina-falsa.test.js` — a página carrega no Chromium e o `blip.js`, **empacotado direto
+com esbuild na hora do teste** (helper `tests/helpers/bundle.js`, não depende da Tarefa 11), fotografa 60 cards,
+abre Contato, lê o painel. **Commit:** `testes: página falsa do Blip a partir dos fatos do DOM`.
 
 ### Tarefa 10 — `src/painel.js` (§2, §6.14–6.16)
 
@@ -425,6 +449,6 @@ Cenários (um arquivo cada, fixtures fictícias):
 
 ## Ordem e dependências
 
-`0 → 1, 2, 3 (paralelas) → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13`. Tarefas 1–3 são independentes; 6 depende de
+`0 → 1, 2, 3 (paralelas) → 4 → 5 → 6 → 7 → 8 → 9 (usa o helper de bundle, não o build) → 10 → 11 → 12 → 13`. Tarefas 1–3 são independentes; 6 depende de
 1, 2, 4; 7 de 6; 12 de 9, 10, 11. Mais de 5 tarefas ⇒ usar `/superpowers:subagent-driven-development`
 (se o plugin não carregar na próxima sessão, executar tarefa a tarefa com o mesmo ciclo teste→implementa→commit).
