@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blip falso (somente para testes)</title>
+<style>
+  body { font-family: sans-serif; display: flex; gap: 16px; margin: 8px; }
+  .thin-scrollbar { height: 420px; width: 320px; overflow: auto; border: 1px solid #bbb; }
+  article { padding: 8px; border-bottom: 1px solid #eee; cursor: pointer; }
+  article div, bds-chip-tag { display: block; }
+  bds-tab-group { display: block; }
+  #direita { width: 360px; }
+</style>
+</head>
+<body>
+<!--
+  Montada SÓ a partir dos fatos do §4 da spec (dados fictícios). Configurada por window.__cenario (ver cenarios.js).
+  Os botões abaixo existem para provar que o bm NUNCA os toca: cada clique incrementa window.__cliquesProibidos.
+-->
+<div class="thin-scrollbar"><div class="contact-list-wrapper"></div></div>
+<div id="direita">
+  <div>
+    <button id="b-enviar">Enviar</button>
+    <button id="b-enviar-nova">Enviar nova mensagem</button>
+    <button id="b-atualizar">Atualizar</button>
+  </div>
+  <bds-tab-group class="contact-info-header-wrapper"></bds-tab-group>
+  <div id="painel"></div>
+</div>
+<script>
+(function () {
+  const cen = window.__cenario || { cards: [] };
+  window.__cliquesProibidos = 0;
+  window.__selecoes = [];
+  for (const id of ['b-enviar', 'b-enviar-nova', 'b-atualizar']) {
+    document.getElementById(id).addEventListener('click', () => { window.__cliquesProibidos++; });
+  }
+
+  let aba = 0;            // 0 = Envios, 1 = Contato
+  let dados = cen.painelInicial || null; // o que o painel mostra agora (pode ser de outro cliente = "painel velho")
+  let timer = null;
+
+  // abas dentro de um shadowRoot ABERTO, como no Blip
+  const raiz = document.querySelector('bds-tab-group').attachShadow({ mode: 'open' });
+  const nomes = ['Envios', 'Contato'];
+  nomes.forEach((nome, i) => {
+    const d = document.createElement('div');
+    d.className = 'tab_group__header__itens__item';
+    d.textContent = nome;
+    d.addEventListener('click', () => { aba = i; render(); });
+    raiz.appendChild(d);
+  });
+
+  function linha(rotulo, valor) {
+    const l = document.createElement('div');
+    const r = document.createElement('bds-typo'); r.setAttribute('variant', 'fs-12'); r.textContent = rotulo;
+    const w = document.createElement('div');
+    const v = document.createElement('bds-typo'); v.setAttribute('variant', 'fs-14'); v.textContent = valor;
+    w.appendChild(v);
+    l.append(r, w);
+    return l;
+  }
+  function render() {
+    const p = document.getElementById('painel');
+    p.replaceChildren();
+    if (aba !== 1 || !dados) return;
+    const t = document.createElement('bds-typo'); t.setAttribute('variant', 'fs-16'); t.textContent = 'Informações';
+    p.append(t, linha('Id', dados.id), linha('Nome', dados.nome), linha('Telefone', dados.telefone), linha('Copiar', ''));
+  }
+
+  function selecionar(i) {
+    window.__selecoes.push(i);
+    aba = 0; // volta para Envios a cada novo cliente (relato do BM)
+    render();
+    clearTimeout(timer);
+    if (cen.painelNuncaAtualiza) return;
+    const atraso = cen.cards[i].atrasoPainel ?? cen.atrasoPainel ?? 0;
+    timer = setTimeout(() => { dados = cen.cards[i].cliente; render(); }, atraso);
+  }
+
+  const lista = document.querySelector('.contact-list-wrapper');
+  const rolagem = document.querySelector('.thin-scrollbar');
+  let visiveis = 0;
+  function cardEl(c, i) {
+    const a = document.createElement('article');
+    for (const t of [c.titulo, c.horario, c.campanha, 'Chatbot:', c.bot]) {
+      const d = document.createElement('div'); d.textContent = t; a.appendChild(d);
+    }
+    const chip = document.createElement('bds-chip-tag'); chip.textContent = c.selo; a.appendChild(chip);
+    a.addEventListener('click', () => selecionar(i));
+    return a;
+  }
+  function mostrarAte(n) {
+    for (; visiveis < Math.min(n, cen.cards.length); visiveis++) lista.appendChild(cardEl(cen.cards[visiveis], visiveis));
+  }
+  mostrarAte(cen.paginacao ? cen.paginacao.inicial : cen.cards.length);
+  if (cen.paginacao) {
+    rolagem.addEventListener('scroll', () => {
+      if (rolagem.scrollTop + rolagem.clientHeight >= rolagem.scrollHeight - 5 && visiveis < cen.cards.length) {
+        setTimeout(() => mostrarAte(visiveis + cen.paginacao.passo), 100); // "carrega mais" assíncrono
+      }
+    });
+  }
+})();
+</script>
+</body>
+</html>
