@@ -2,8 +2,9 @@
 
 Idioma de código, UI, commits e conversa: **português (pt-BR)**. Autor: Rodrigo Facilidades.
 
-> **Status: grill concluído (2 rodadas); spec pronta em `docs/plano/spec.md`.** Próximo passo: nova sessão
-> com `/superpowers:writing-plans` a partir da spec → `docs/plano/plano.md`. Nada foi construído ainda.
+> **Status: spec (`docs/plano/spec.md`) e plano (`docs/plano/plano.md`, tarefas 0–13) prontos.** Próximo passo:
+> nova sessão executando o plano (`/superpowers:subagent-driven-development`; se o plugin não carregar, tarefa a
+> tarefa: teste → implementa → commit). Nada foi construído ainda.
 > Ao fim de cada fase, atualize este arquivo com o que foi decidido (curto: ele é lido em toda sessão).
 
 ## Objetivo
@@ -21,6 +22,7 @@ Decisões-chave (resumo; a spec manda):
   sai sempre completa; relatório é só plano B). Premissa: todo card da fila tem linha
   na planilha; card que não casa = anomalia → relatório "não identificado, verificar manualmente" (nada é
   gravado, não acrescenta linhas/abas). `N. localizado` não vai para a planilha.
+- Com "últimos N" preenchido **não** grava `Respondido` (decisão do planejamento).
 - Selos do Blip gravados exatos: `Enviada`, `Lida`, `Entregue`, `Falha`.
 - Filtro de campanha (padrão `acao_reclameaqui`) e campo "últimos N clientes" (N primeiros do topo, após o filtro).
 - Proteção contra painel velho: só lê Informações quando `Nome` bate com o card ou o `Id` mudou.
@@ -28,19 +30,22 @@ Decisões-chave (resumo; a spec manda):
 - Sem SheetJS: edita o XML do .xlsx (zip nativo) e baixa a cópia; botão Baixar parcial; baixa sozinho ao parar.
 
 ## Stack e comandos
-JavaScript puro (ES modules) + build em Node + Playwright. **Comandos ainda não existem** (definir no plano e
-registrar aqui: instalar, build → `dist/instalar.html`, testar, lint).
+JavaScript puro (ES modules, sem dependência de runtime) + build `esbuild` + testes `node --test` + Playwright.
+Comandos (definidos no plano; só existirão após a Tarefa 0): `npm install` · `npm test` (unit) · `npm run e2e` ·
+`npm run build` (→ `dist/instalar.html`) · `npm run check` (tudo) · `python3 scripts/gerar-fixtures.py`.
+Ambiente: `import 'playwright'` em ESM falha → usar `createRequire` (`tests/helpers/playwright.js`);
+`@playwright/test` não resolve → `node:test` + `playwright` puro; validar xlsx/zip com `unzip -t` e openpyxl.
 
 ## Estrutura
 - `docs/plano/spec.md` — spec do grill (fonte para o plano).
-- `docs/plano/plano.md` — (a criar) plano de tarefas.
+- `docs/plano/plano.md` — plano de tarefas 0–13 com testes e tabela de rastreabilidade.
 - `src/` — (a criar) módulos pequenos; só `src/blip.js` conhece o DOM/seletores do Blip.
 - `tests/fixtures/` — (a criar) planilhas e páginas Blip **fictícias**.
 - `dist/` — gerado pelo build (ignorado no git).
 
 ## Fluxo de trabalho (economia de token)
 1. `/grill-me` → decisões gravadas em `docs/plano/spec.md`. ✅ feito
-2. Nova sessão: `/superpowers:writing-plans` a partir da spec → `docs/plano/plano.md`.
+2. `/superpowers:writing-plans` → `docs/plano/plano.md`. ✅ feito (escrito à mão: o comando não carregou)
 3. Nova sessão: `/superpowers:subagent-driven-development` (ou `executing-plans` se o plano for pequeno, < ~5 tarefas).
 - Uma sessão por fase; cada fase lê só o arquivo da anterior.
 - Não reler arquivos grandes inteiros: usar `grep -n` e ler só o trecho.

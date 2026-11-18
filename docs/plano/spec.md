@@ -108,6 +108,8 @@ Classes com hash (`Yv6Nb-…==`, `sc-…`, `nth-child`) **mudam a cada deploy: n
 10. **Linha da planilha sem card = `Respondido`** (decisão do BM): quem não está mais em Mensagens ativas
     respondeu (virou ticket) — ou a mensagem expirou, mas o BM assume "respondeu". Grava **`Respondido`** em
     toda linha (com Retorno vazio, ou todas se "sobrescrever") que nenhum card casou. Regras de segurança:
+    - **com "últimos N" preenchido, `Respondido` NÃO é gravado** (decisão do BM no planejamento: as linhas fora dos N
+      não foram visitadas; a confirmação inicial avisa isso);
     - **só grava se a execução chegou ao fim da lista**; se parar/der erro/Parar, as linhas não visitadas
       ficam **em branco**;
     - **a planilha sai sempre completa**: se **nenhum** card ficou não identificado, grava `Respondido` em todas
@@ -128,7 +130,7 @@ Classes com hash (`Yv6Nb-…==`, `sc-…`, `nth-child`) **mudam a cada deploy: n
 11. **Filtro de campanha**: campo editável, padrão **`acao_reclameaqui`**; vazio = todas. Cards de outra
     campanha são ignorados e só contados no relatório.
 12. **Quantos verificar**: campo "últimos **N** clientes" (vazio = todos). Conta os **N primeiros cards do topo**
-    **depois** do filtro de campanha (o topo é o mais recente). Ex.: mandou 50 ontem e 30 hoje → N = 30.
+    **depois** do filtro de campanha (o topo é o mais recente). Ex.: mandou 50 ontem e 30 hoje → N = 30. Com N preenchido não há `Respondido` (§6.10).
 13. **Foto da fila**: antes de começar, rola até a contagem de cards estabilizar e tira uma foto (título,
     campanha, horário, selo). O selo gravado é o da foto. Na hora do clique, reencontra o card por
     título+campanha+horário; se sumiu/mudou, **pula e anota** (não para tudo).
