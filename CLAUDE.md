@@ -2,10 +2,8 @@
 
 Idioma de código, UI, commits e conversa: **português (pt-BR)**. Autor: Rodrigo Facilidades.
 
-> **Status: spec (`docs/plano/spec.md`) e plano (`docs/plano/plano.md`, tarefas 0–13) prontos.** Próximo passo:
-> nova sessão executando o plano (`/superpowers:subagent-driven-development`; se o plugin não carregar, tarefa a
-> tarefa: teste → implementa → commit). Nada foi construído ainda.
-> Ao fim de cada fase, atualize este arquivo com o que foi decidido (curto: ele é lido em toda sessão).
+> **Status: implementado e testado em página falsa (tarefas 0–13 do plano).** Falta o **teste real no Blip** (N = 2 ou 3,
+> conferindo à mão): ver "O que NÃO foi testado" no `README.md`. Ao mudar regras, atualize spec → plano → este arquivo.
 
 ## Objetivo
 Bookmarklet que roda na tela **Mensagens ativas** do Blip Desk (`*.desk.blip.ai/activeMessage`) e preenche uma
@@ -26,18 +24,21 @@ Decisões-chave (resumo; a spec manda):
 - Sem SheetJS: edita o XML do .xlsx (zip nativo) e baixa a cópia; botão Baixar parcial; baixa sozinho ao parar.
 
 ## Stack e comandos
-JavaScript puro (ES modules, sem dependência de runtime) + build `esbuild` + testes `node --test` + Playwright.
-Comandos (definidos no plano; só existirão após a Tarefa 0): `npm install` · `npm test` (unit) · `npm run e2e` ·
-`npm run build` (→ `dist/instalar.html`) · `npm run check` (tudo) · `python3 scripts/gerar-fixtures.py`.
-Ambiente: `import 'playwright'` em ESM falha → usar `createRequire` (`tests/helpers/playwright.js`);
-`@playwright/test` não resolve → `node:test` + `playwright` puro; validar xlsx/zip com `unzip -t` e openpyxl.
+JavaScript puro (ES modules, sem dependência de runtime) + build `esbuild` + testes `node --test` + Playwright (página falsa).
+- Instalar: `npm install` · Unitários: `npm test` · E2E: `npm run e2e` (usa `dist/bm.js`: rode `npm run build` antes)
+- Build: `npm run build` (→ `dist/bm.js` + `dist/instalar.html`) · Tudo: `npm run check` · Fixtures: `python3 scripts/gerar-fixtures.py`
+- Ambiente: `node --test <diretório>` falha no Node 22 → usar glob entre aspas (já nos scripts). `import 'playwright'` em ESM
+  falha → `tests/helpers/playwright.js` (createRequire). `@playwright/test` não resolve → `node:test` + `playwright` puro.
+  Validar xlsx/zip com `unzip -t` e openpyxl (`tests/helpers/xlsx-externo.py`), nunca só com o nosso leitor.
 
 ## Estrutura
-- `docs/plano/spec.md` — spec do grill (fonte para o plano).
-- `docs/plano/plano.md` — plano de tarefas 0–13 com testes e tabela de rastreabilidade.
-- `src/` — (a criar) módulos pequenos; só `src/blip.js` conhece o DOM/seletores do Blip.
-- `tests/fixtures/` — (a criar) planilhas e páginas Blip **fictícias**.
-- `dist/` — gerado pelo build (ignorado no git).
+- `src/telefone.js`, `nome.js` — normalização/comparação (puros) · `zip.js`, `xlsx.js` — zip nativo e leitura/gravação de células
+  (edita só o XML da aba; sem SheetJS) · `casar.js` — regras de casamento, consolidação e relatório (puro)
+- `src/execucao.js` — máquina de estados (portas injetadas: blip/relogio/ui/planilha; proteção contra painel velho)
+- `src/blip.js` — **único** arquivo que conhece o DOM/seletores do Blip (teste de lint proíbe classes com hash e botões de envio)
+- `src/painel.js` (UI em shadow DOM), `relatorio.js` (texto do relatório), `main.js` (liga tudo; idempotente)
+- `scripts/build.mjs`, `scripts/gerar-fixtures.py` · `tests/unit`, `tests/e2e`, `tests/fixtures` (planilhas e `blip-falso.html` fictícios)
+- `docs/plano/spec.md` (manda em conflito) e `plano.md` · `dist/` gerado (ignorado no git)
 
 ## Fluxo de trabalho (economia de token)
 1. `/grill-me` → decisões gravadas em `docs/plano/spec.md`. ✅ feito

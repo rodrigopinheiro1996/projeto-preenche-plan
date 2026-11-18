@@ -360,6 +360,9 @@ botões **Parar** e **Baixar parcial**; progresso; área do
 relatório **copiável**, incluindo o rótulo de "possível painel repetido").
 **No `main`:** `relogio` real — `agora=Date.now`, `esperar=ms=>new Promise(r=>setTimeout(r,ms))` e `limite(ms)` com
 `setTimeout`/`clearTimeout` (não pode manter a execução travada; a espera de 120 s corre em paralelo à decisão).
+**Nota de implementação (Tarefa 7, linha de base):** como o painel Informações só aparece na aba **Contato**, o orquestrador
+abre essa aba (clique permitido) e espera `ESPERA_BASE_MS` (300 ms) **antes** do 1º card para ler o Id de quem já estava
+selecionado; sem cliente selecionado, a base fica vazia. Sem isso o painel velho do cliente anterior passaria como "Id mudou".
 **Teste:** coberto pelos e2e da Tarefa 12 (preencher campos, ver diálogos, copiar relatório).
 **Commit:** `painel: interface do bookmarklet em shadow DOM`.
 
